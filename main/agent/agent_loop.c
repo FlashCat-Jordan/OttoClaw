@@ -5,6 +5,7 @@
 #include "llm/llm_proxy.h"
 #include "memory/session_mgr.h"
 #include "tools/tool_registry.h"
+#include "lcd/lcd_display.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -117,6 +118,13 @@ static void agent_loop_task(void *arg)
         cJSON_AddStringToObject(user_msg, "content", msg.content);
         cJSON_AddItemToArray(messages, user_msg);
 
+        ESP_LOGI(TAG, "Processing message: %.50s...", msg.content);
+
+        lcd_set_state(STATE_THINKING);
+        if (msg.content) {
+            lcd_show_message(msg.content);
+        }
+
         /* 4. ReAct loop */
         char *final_text = NULL;
         int iteration = 0;
@@ -166,6 +174,9 @@ static void agent_loop_task(void *arg)
             session_append(msg.chat_id, "user", msg.content);
             session_append(msg.chat_id, "assistant", final_text);
 
+            lcd_set_state(STATE_SPEAKING);
+            lcd_show_message(final_text);
+
             /* Push response to outbound */
             mimi_msg_t out = {0};
             strncpy(out.channel, msg.channel, sizeof(out.channel) - 1);
@@ -175,6 +186,7 @@ static void agent_loop_task(void *arg)
         } else {
             /* Error or empty response */
             free(final_text);
+            lcd_set_state(STATE_ERROR);
             mimi_msg_t out = {0};
             strncpy(out.channel, msg.channel, sizeof(out.channel) - 1);
             strncpy(out.chat_id, msg.chat_id, sizeof(out.chat_id) - 1);
@@ -183,6 +195,10 @@ static void agent_loop_task(void *arg)
                 message_bus_push_outbound(&out);
             }
         }
+
+        vTaskDelay(pdMS_TO_TICKS(3000));
+        lcd_set_state(STATE_SLEEPING);
+        lcd_show_message("");
 
         /* Free inbound message content */
         free(msg.content);

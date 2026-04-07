@@ -56,7 +56,7 @@
 #define MIMI_DINGTALK_POLL_CORE        0
 
 /* Agent Loop */
-#define MIMI_AGENT_STACK             (12 * 1024)
+#define MIMI_AGENT_STACK             (16 * 1024)
 #define MIMI_AGENT_PRIO              6
 #define MIMI_AGENT_CORE              1
 #define MIMI_AGENT_MAX_HISTORY       20
