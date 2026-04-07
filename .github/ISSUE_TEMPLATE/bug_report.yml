@@ -1,0 +1,44 @@
+name: Bug Report
+description: Report a bug or unexpected behavior
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      placeholder: A clear description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Flash firmware with ...
+        2. Send message ...
+        3. See error ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: What you expected to happen.
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Screenshots
+      placeholder: Paste serial monitor output or screenshots here.
+      render: shell
+    validations:
+      required: false
+  - type: input
+    id: board
+    attributes:
+      label: Board / Hardware
+      placeholder: e.g. Xiaozhi ESP32-S3 16MB/8MB
+    validations:
+      required: false

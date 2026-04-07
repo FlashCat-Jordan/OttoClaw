@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MimiClaw Settings</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .header {
+            background: #16213e;
+            padding: 15px 20px;
+            text-align: center;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            font-size: 20px;
+            color: #e94560;
+        }
+        .back-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #e94560;
+            text-decoration: none;
+            font-size: 24px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .section {
+            background: #16213e;
+            border: 1px solid #0f3460;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+        }
+        .section h2 {
+            font-size: 16px;
+            color: #e94560;
+            margin-bottom: 15px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            color: #888;
+            margin-bottom: 5px;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            background: #1a1a2e;
+            border: 1px solid #0f3460;
+            border-radius: 8px;
+            color: #eee;
+            font-size: 14px;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+        .form-group .hint {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .btn {
+            width: 100%;
+            padding: 12px;
+            background: #e94560;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .btn:hover {
+            background: #d63d56;
+        }
+        .btn:disabled {
+            background: #444;
+            cursor: not-allowed;
+        }
+        .btn-secondary {
+            background: #0f3460;
+        }
+        .btn-secondary:hover {
+            background: #16213e;
+        }
+        .status {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: none;
+        }
+        .status.success {
+            background: rgba(74, 222, 128, 0.2);
+            border: 1px solid #4ade80;
+            color: #4ade80;
+        }
+        .status.error {
+            background: rgba(248, 113, 113, 0.2);
+            border: 1px solid #f87171;
+            color: #f87171;
+        }
+        .current-info {
+            background: #0f3460;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="back-btn">←</a>
+    
+    <div class="container">
+        <div class="header">
+            <h1>MimiClaw Settings</h1>
+        </div>
+        
+        <div id="status" class="status"></div>
+        
+        <!-- WiFi Settings -->
+        <div class="section">
+            <h2>WiFi 配置</h2>
+            <div class="current-info" id="current-wifi">
+                当前 WiFi: <span id="wifi-ssid">Loading...</span>
+            </div>
+            <div class="form-group">
+                <label>WiFi SSID</label>
+                <input type="text" id="wifi_ssid" placeholder="WiFi 名称">
+            </div>
+            <div class="form-group">
+                <label>WiFi Password</label>
+                <input type="password" id="wifi_pass" placeholder="WiFi 密码">
+                <div class="hint">留空则不修改密码</div>
+            </div>
+            <button class="btn" onclick="saveWiFi()">保存 WiFi 配置</button>
+        </div>
+        
+        <!-- Proxy Settings -->
+        <div class="section">
+            <h2>HTTP 代理</h2>
+            <div class="current-info" id="current-proxy">
+                当前代理: <span id="proxy-addr">Loading...</span>
+            </div>
+            <div class="form-group">
+                <label>代理地址</label>
+                <input type="text" id="proxy_host" placeholder="192.168.1.100">
+            </div>
+            <div class="form-group">
+                <label>代理端口</label>
+                <input type="text" id="proxy_port" placeholder="7890">
+            </div>
+            <button class="btn" onclick="saveProxy()">保存代理配置</button>
+        </div>
+        
+        <!-- System Actions -->
+        <div class="section">
+            <h2>系统操作</h2>
+            <button class="btn btn-secondary" onclick="reconnectWiFi()">重新连接 WiFi</button>
+            <button class="btn btn-secondary" onclick="rebootDevice()">重启设备</button>
+        </div>
+        
+        <div style="text-align: center; color: #666; font-size: 12px; margin-top: 20px;">
+            MimiClaw v1.0
+        </div>
+    </div>
+
+    <script>
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = 'status ' + type;
+            status.style.display = 'block';
+            setTimeout(() => {
+                status.style.display = 'none';
+            }, 3000);
+        }
+        
+        function loadCurrentSettings() {
+            fetch('/api/settings')
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('wifi-ssid').textContent = data.wifi_ssid || 'Unknown';
+                    document.getElementById('proxy-addr').textContent = 
+                        data.proxy_host ? `${data.proxy_host}:${data.proxy_port}` : 'Not configured';
+                    
+                    document.getElementById('wifi_ssid').value = data.wifi_ssid || '';
+                    document.getElementById('proxy_host').value = data.proxy_host || '';
+                    document.getElementById('proxy_port').value = data.proxy_port || '';
+                })
+                .catch(err => {
+                    console.error('Failed to load settings:', err);
+                });
+        }
+        
+        function saveWiFi() {
+            const ssid = document.getElementById('wifi_ssid').value.trim();
+            const pass = document.getElementById('wifi_pass').value;
+            
+            if (!ssid) {
+                showStatus('请输入 WiFi SSID', 'error');
+                return;
+            }
+            
+            const data = { wifi_ssid: ssid };
+            if (pass) data.wifi_pass = pass;
+            
+            fetch('/api/settings/wifi', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    showStatus('WiFi 配置已保存，请重启设备或重新连接 WiFi', 'success');
+                    document.getElementById('wifi_pass').value = '';
+                    loadCurrentSettings();
+                } else {
+                    showStatus('保存失败: ' + (data.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(err => {
+                showStatus('保存失败: ' + err.message, 'error');
+            });
+        }
+        
+        function saveProxy() {
+            const host = document.getElementById('proxy_host').value.trim();
+            const port = document.getElementById('proxy_port').value.trim();
+            
+            const data = {
+                proxy_host: host,
+                proxy_port: port
+            };
+            
+            fetch('/api/settings/proxy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    showStatus('代理配置已保存，请重启设备生效', 'success');
+                    loadCurrentSettings();
+                } else {
+                    showStatus('保存失败: ' + (data.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(err => {
+                showStatus('保存失败: ' + err.message, 'error');
+            });
+        }
+        
+        function reconnectWiFi() {
+            if (!confirm('确定要重新连接 WiFi 吗？')) return;
+            
+            fetch('/api/system/reconnect', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    showStatus('正在重新连接 WiFi...', 'success');
+                })
+                .catch(err => {
+                    showStatus('操作失败: ' + err.message, 'error');
+                });
+        }
+        
+        function rebootDevice() {
+            if (!confirm('确定要重启设备吗？')) return;
+            
+            fetch('/api/system/reboot', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    showStatus('设备正在重启...', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 5000);
+                })
+                .catch(err => {
+                    showStatus('操作失败: ' + err.message, 'error');
+                });
+        }
+        
+        loadCurrentSettings();
+    </script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+# Build output
+build/
+dist/
+tmp/
+releases/
+
+# ESP-IDF
+sdkconfig
+sdkconfig.old
+dependencies.lock
+components/
+managed_components/
+
+# Generated headers
+main/assets/lang_config.h
+main/mmap_generate_emoji.h
+mmap_generate_*.h
+mimi_secrets.h
+
+# IDE / Editor
+.vscode/
+.devcontainer/
+.idea/
+.clangd
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+main/mimi_secrets.h
+
+# Cache / Compiled
+.cache
+*.pyc
+*.bin
+
+# Reference repos
+nanobot/
+
+# OS
+.DS_Store
+Thumbs.db
