@@ -67,53 +67,34 @@ void otto_set_trims(otto_t *otto, int left_leg, int right_leg, int left_foot, in
     }
 }
 
-static void otto_write(otto_t *otto, int position) {
-    if (otto->servo_pins[LEFT_FOOT] != -1) {
-        oscillator_set_position(&otto->servo[LEFT_FOOT], position);
-    }
-    if (otto->servo_pins[RIGHT_FOOT] != -1) {
-        oscillator_set_position(&otto->servo[RIGHT_FOOT], position);
-    }
-}
-
 void otto_move_servos(otto_t *otto, int time, int servo_target[]) {
     if (otto_get_rest_state(otto) == true) {
         otto_set_rest_state(otto, false);
     }
 
-    otto->final_time = millis() + time;
+    unsigned long final_time = millis() + time;
+    int start_pos[SERVO_COUNT];
+
+    for (int i = 0; i < SERVO_COUNT; i++) {
+        if (otto->servo_pins[i] != -1) {
+            start_pos[i] = oscillator_get_position(&otto->servo[i]);
+        }
+    }
 
     if (time > 10) {
-        for (int i = 0; i < SERVO_COUNT; i++) {
-            if (otto->servo_pins[i] != -1) {
-                otto->increment[i] = (servo_target[i] - oscillator_get_position(&otto->servo[i])) / (time / 10.0);
-            }
-        }
+        while (millis() < final_time) {
+            unsigned long progress = millis();
+            float ratio = (float)(progress - (final_time - time)) / time;
+            if (ratio < 0) ratio = 0;
+            if (ratio > 1) ratio = 1;
 
-        int previous_servo_time = millis();
-
-        for (int i = 0; i < SERVO_COUNT; i++) {
-            otto->partial_time = (long)(otto->increment[i] * 10.0);
-        }
-
-        while (millis() < otto->final_time) {
             for (int i = 0; i < SERVO_COUNT; i++) {
                 if (otto->servo_pins[i] != -1) {
-                    long current_servo_time = millis();
-                    if (current_servo_time - previous_servo_time >= 10) {
-                        int pos = oscillator_get_position(&otto->servo[i]) + (int)otto->partial_time;
-                        oscillator_set_position(&otto->servo[i], pos);
-                        previous_servo_time = current_servo_time;
-                    }
+                    int pos = start_pos[i] + (int)((servo_target[i] - start_pos[i]) * ratio);
+                    oscillator_set_position(&otto->servo[i], pos);
                 }
             }
             vTaskDelay(pdMS_TO_TICKS(10));
-        }
-    } else {
-        for (int i = 0; i < SERVO_COUNT; i++) {
-            if (otto->servo_pins[i] != -1) {
-                oscillator_set_position(&otto->servo[i], servo_target[i]);
-            }
         }
     }
 
@@ -124,14 +105,70 @@ void otto_move_servos(otto_t *otto, int time, int servo_target[]) {
     }
 }
 
-void otto_home(otto_t *otto, bool hands_down) {
-    int home_pos[SERVO_COUNT] = {90, 90, 90, 90, 90, 90};
-    if (!hands_down && otto->has_hands) {
-        home_pos[LEFT_HAND] = HAND_HOME_POSITION;
-        home_pos[RIGHT_HAND] = HAND_HOME_POSITION;
+static void otto_oscillate_servos(otto_t *otto, int amplitude[], int offset[], int period, double phase_diff[], float cycle) {
+    for (int i = 0; i < SERVO_COUNT; i++) {
+        if (otto->servo_pins[i] != -1) {
+            oscillator_set_a(&otto->servo[i], amplitude[i]);
+            oscillator_set_o(&otto->servo[i], offset[i]);
+            oscillator_set_t(&otto->servo[i], period);
+            oscillator_set_ph(&otto->servo[i], phase_diff[i]);
+        }
     }
-    otto_move_servos(otto, 700, home_pos);
-    otto_set_rest_state(otto, true);
+
+    unsigned long ref = millis();
+    unsigned long end_time = (unsigned long)(period * cycle) + ref;
+
+    while (millis() < end_time) {
+        for (int i = 0; i < SERVO_COUNT; i++) {
+            if (otto->servo_pins[i] != -1) {
+                oscillator_refresh(&otto->servo[i]);
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(5));
+    }
+    vTaskDelay(pdMS_TO_TICKS(10));
+}
+
+static void otto_execute(otto_t *otto, int amplitude[], int offset[], int period, double phase_diff[], float steps) {
+    if (otto_get_rest_state(otto) == true) {
+        otto_set_rest_state(otto, false);
+    }
+
+    int cycles = (int)steps;
+
+    if (cycles >= 1) {
+        for (int i = 0; i < cycles; i++) {
+            otto_oscillate_servos(otto, amplitude, offset, period, phase_diff, 1.0);
+        }
+    }
+
+    float remaining = steps - cycles;
+    if (remaining > 0) {
+        otto_oscillate_servos(otto, amplitude, offset, period, phase_diff, remaining);
+    }
+    vTaskDelay(pdMS_TO_TICKS(10));
+}
+
+void otto_home(otto_t *otto, bool hands_down) {
+    if (otto->is_otto_resting == false) {
+        int homes[SERVO_COUNT];
+        for (int i = 0; i < SERVO_COUNT; i++) {
+            if (i == LEFT_HAND || i == RIGHT_HAND) {
+                if (hands_down) {
+                    homes[i] = (i == LEFT_HAND) ? HAND_HOME_POSITION : 180 - HAND_HOME_POSITION;
+                } else {
+                    homes[i] = oscillator_get_position(&otto->servo[i]);
+                }
+            } else {
+                homes[i] = 90;
+            }
+        }
+
+        otto_move_servos(otto, 700, homes);
+        otto->is_otto_resting = true;
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(200));
 }
 
 bool otto_get_rest_state(otto_t *otto) {
@@ -143,267 +180,198 @@ void otto_set_rest_state(otto_t *otto, bool state) {
 }
 
 void otto_jump(otto_t *otto, float steps, int period) {
-    int up[SERVO_COUNT] = {90, 90, 90 - 35, 90 + 35, 90, 90};
-    int down[SERVO_COUNT] = {90, 90, 90 - 25, 90 + 25, 90, 90};
-
-    for (int i = 0; i < steps; i++) {
-        otto_move_servos(otto, period / 2, up);
-        otto_move_servos(otto, period / 2, down);
-    }
+    int up[SERVO_COUNT] = {90, 90, 150, 30, HAND_HOME_POSITION, 180 - HAND_HOME_POSITION};
+    int down[SERVO_COUNT] = {90, 90, 90, 90, HAND_HOME_POSITION, 180 - HAND_HOME_POSITION};
+    otto_move_servos(otto, period, up);
+    otto_move_servos(otto, period, down);
 }
 
 void otto_walk(otto_t *otto, float steps, int period, int dir, int amount) {
-    int _A = 25;
-    int _O = 0;
-    int phase_ = 0;
+    int A[SERVO_COUNT] = {30, 30, 30, 30, 0, 0};
+    int O[SERVO_COUNT] = {0, 0, 5, -5, HAND_HOME_POSITION - 90, HAND_HOME_POSITION};
+    double phase_diff[SERVO_COUNT] = {0, 0, DEG2RAD(dir * -90), DEG2RAD(dir * -90), 0, 0};
 
-    if (amount != 0) {
-        _A = amount;
-    }
-
-    double DI = ((dir == FORWARD) ? 1.0 : -1.0);
-
-    int ALPHA = _A;
-    int OL = _O;
-    int OR = _O;
-
-    int T = 450;
-    int TR = 800;
-    int TL = 800;
-
-    if (period <= 1000) {
-        T = period / 2;
-        TR = period;
-        TL = period;
+    if (amount > 0 && otto->has_hands) {
+        A[LEFT_HAND] = amount;
+        A[RIGHT_HAND] = amount;
+        phase_diff[LEFT_HAND] = phase_diff[RIGHT_LEG];
+        phase_diff[RIGHT_HAND] = phase_diff[LEFT_LEG];
     } else {
-        T = period;
-        TR = period / 2;
-        TL = period / 2;
+        A[LEFT_HAND] = 0;
+        A[RIGHT_HAND] = 0;
     }
 
-    for (int x = 0; x < steps; x++) {
-        int move_a[SERVO_COUNT] = {90 + OL, 90 + OR, 90 - ALPHA, 90 - ALPHA, 90, 90};
-        int move_b[SERVO_COUNT] = {90 + OL, 90 + OR, 90, 90, 90, 90};
-        int move_c[SERVO_COUNT] = {90 + OL, 90 + OR, 90 + ALPHA, 90 + ALPHA, 90, 90};
-        int move_d[SERVO_COUNT] = {90 + OL, 90 + OR, 90, 90, 90, 90};
-
-        if (dir == FORWARD) {
-            move_a[LEFT_LEG] = 90 - OL;
-            move_b[LEFT_LEG] = 90 - OL;
-            move_c[LEFT_LEG] = 90 - OL;
-            move_d[LEFT_LEG] = 90 - OL;
-        } else {
-            move_a[RIGHT_LEG] = 90 - OR;
-            move_b[RIGHT_LEG] = 90 - OR;
-            move_c[RIGHT_LEG] = 90 - OR;
-            move_d[RIGHT_LEG] = 90 - OR;
-        }
-
-        otto_move_servos(otto, TL, move_a);
-        otto_move_servos(otto, T, move_b);
-        otto_move_servos(otto, TR, move_c);
-        otto_move_servos(otto, T, move_d);
-    }
+    otto_execute(otto, A, O, period, phase_diff, steps);
 }
 
 void otto_turn(otto_t *otto, float steps, int period, int dir, int amount) {
-    int _A = 25;
-    if (amount != 0) {
-        _A = amount;
+    int A[SERVO_COUNT] = {30, 30, 30, 30, 0, 0};
+    int O[SERVO_COUNT] = {0, 0, 5, -5, HAND_HOME_POSITION - 90, HAND_HOME_POSITION};
+    double phase_diff[SERVO_COUNT] = {0, 0, DEG2RAD(-90), DEG2RAD(-90), 0, 0};
+
+    if (dir == LEFT) {
+        A[0] = 30;
+        A[1] = 0;
+    } else {
+        A[0] = 0;
+        A[1] = 30;
     }
 
-    int T = period;
-    int TR = period;
-    int TL = period;
-
-    for (int x = 0; x < steps; x++) {
-        int move_1[SERVO_COUNT] = {90, 90, 90 - _A, 90 - _A, 90, 90};
-        int move_2[SERVO_COUNT] = {90, 90, 90, 90, 90, 90};
-        int move_3[SERVO_COUNT] = {90, 90, 90 + _A, 90 + _A, 90, 90};
-        int move_4[SERVO_COUNT] = {90, 90, 90, 90, 90, 90};
-
-        if (dir == LEFT) {
-            move_1[RIGHT_LEG] = 90 + 25;
-            move_2[RIGHT_LEG] = 90 + 25;
-            move_3[RIGHT_LEG] = 90 + 25;
-            move_4[RIGHT_LEG] = 90 + 25;
-        } else {
-            move_1[LEFT_LEG] = 90 + 25;
-            move_2[LEFT_LEG] = 90 + 25;
-            move_3[LEFT_LEG] = 90 + 25;
-            move_4[LEFT_LEG] = 90 + 25;
-        }
-
-        otto_move_servos(otto, TL, move_1);
-        otto_move_servos(otto, T, move_2);
-        otto_move_servos(otto, TR, move_3);
-        otto_move_servos(otto, T, move_4);
+    if (amount > 0 && otto->has_hands) {
+        A[LEFT_HAND] = amount;
+        A[RIGHT_HAND] = amount;
+        phase_diff[LEFT_HAND] = phase_diff[LEFT_LEG];
+        phase_diff[RIGHT_HAND] = phase_diff[RIGHT_LEG];
+    } else {
+        A[LEFT_HAND] = 0;
+        A[RIGHT_HAND] = 0;
     }
+
+    otto_execute(otto, A, O, period, phase_diff, steps);
 }
 
 void otto_bend(otto_t *otto, int steps, int period, int dir) {
+    int bend1[SERVO_COUNT] = {90, 90, 62, 35, HAND_HOME_POSITION, 180 - HAND_HOME_POSITION};
+    int bend2[SERVO_COUNT] = {90, 90, 62, 105, HAND_HOME_POSITION, 180 - HAND_HOME_POSITION};
+    int homes[SERVO_COUNT] = {90, 90, 90, 90, HAND_HOME_POSITION, 180 - HAND_HOME_POSITION};
+
+    if (dir == -1) {
+        bend1[2] = 180 - 35;
+        bend1[3] = 180 - 60;
+        bend2[2] = 180 - 105;
+        bend2[3] = 180 - 60;
+    }
+
+    int T2 = 800;
+
     for (int i = 0; i < steps; i++) {
-        if (dir == LEFT) {
-            int bend_a[SERVO_COUNT] = {90, 90, 90 - 30, 90 - 30, 90, 90};
-            int bend_b[SERVO_COUNT] = {90, 90, 90, 90, 90, 90};
-            otto_move_servos(otto, period, bend_a);
-            otto_move_servos(otto, period, bend_b);
-        } else {
-            int bend_a[SERVO_COUNT] = {90, 90, 90 + 30, 90 + 30, 90, 90};
-            int bend_b[SERVO_COUNT] = {90, 90, 90, 90, 90, 90};
-            otto_move_servos(otto, period, bend_a);
-            otto_move_servos(otto, period, bend_b);
-        }
+        otto_move_servos(otto, T2 / 2, bend1);
+        otto_move_servos(otto, T2 / 2, bend2);
+        vTaskDelay(pdMS_TO_TICKS((int)(period * 0.8)));
+        otto_move_servos(otto, 500, homes);
     }
 }
 
 void otto_shake_leg(otto_t *otto, int steps, int period, int dir) {
-    for (int i = 0; i < steps; i++) {
-        if (dir == RIGHT) {
-            int shake_a[SERVO_COUNT] = {90, 90, 90, 90 - 40, 90, 90};
-            int shake_b[SERVO_COUNT] = {90, 90, 90, 90 + 20, 90, 90};
-            otto_move_servos(otto, period, shake_a);
-            otto_move_servos(otto, period, shake_b);
-        } else {
-            int shake_a[SERVO_COUNT] = {90, 90, 90 - 40, 90, 90, 90};
-            int shake_b[SERVO_COUNT] = {90, 90, 90 + 20, 90, 90, 90};
-            otto_move_servos(otto, period, shake_a);
-            otto_move_servos(otto, period, shake_b);
-        }
+    int numberLegMoves = 2;
+
+    int shake_leg1[SERVO_COUNT] = {90, 90, 58, 35, HAND_HOME_POSITION, 180 - HAND_HOME_POSITION};
+    int shake_leg2[SERVO_COUNT] = {90, 90, 58, 120, HAND_HOME_POSITION, 180 - HAND_HOME_POSITION};
+    int shake_leg3[SERVO_COUNT] = {90, 90, 58, 60, HAND_HOME_POSITION, 180 - HAND_HOME_POSITION};
+    int homes[SERVO_COUNT] = {90, 90, 90, 90, HAND_HOME_POSITION, 180 - HAND_HOME_POSITION};
+
+    if (dir == LEFT) {
+        shake_leg1[2] = 180 - 35;
+        shake_leg1[3] = 180 - 58;
+        shake_leg2[2] = 180 - 120;
+        shake_leg2[3] = 180 - 58;
+        shake_leg3[2] = 180 - 60;
+        shake_leg3[3] = 180 - 58;
     }
+
+    int T2 = 1000;
+    period = period - T2;
+    if (period < 200 * numberLegMoves) {
+        period = 200 * numberLegMoves;
+    }
+
+    for (int j = 0; j < steps; j++) {
+        otto_move_servos(otto, T2 / 2, shake_leg1);
+        otto_move_servos(otto, T2 / 2, shake_leg2);
+
+        for (int i = 0; i < numberLegMoves; i++) {
+            otto_move_servos(otto, period / (2 * numberLegMoves), shake_leg3);
+            otto_move_servos(otto, period / (2 * numberLegMoves), shake_leg2);
+        }
+        otto_move_servos(otto, 500, homes);
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(period));
 }
 
 void otto_sit(otto_t *otto) {
-    int sit_pos[SERVO_COUNT] = {90, 90, 150, 30, 90, 90};
-    otto_move_servos(otto, 1000, sit_pos);
-    otto_set_rest_state(otto, true);
+    int target[SERVO_COUNT] = {120, 60, 0, 180, 45, 135};
+    otto_move_servos(otto, 600, target);
 }
 
 void otto_updown(otto_t *otto, float steps, int period, int height) {
-    int up[SERVO_COUNT] = {90, 90, 90 - height, 90 + height, 90, 90};
-    int down[SERVO_COUNT] = {90, 90, 90 + 10, 90 - 10, 90, 90};
-    for (int i = 0; i < steps; i++) {
-        otto_move_servos(otto, period, up);
-        otto_move_servos(otto, period, down);
-    }
+    int A[SERVO_COUNT] = {0, 0, height, height, 0, 0};
+    int O[SERVO_COUNT] = {0, 0, height, -height, HAND_HOME_POSITION, 180 - HAND_HOME_POSITION};
+    double phase_diff[SERVO_COUNT] = {0, 0, DEG2RAD(-90), DEG2RAD(90), 0, 0};
+
+    otto_execute(otto, A, O, period, phase_diff, steps);
 }
 
 void otto_swing(otto_t *otto, float steps, int period, int height) {
-    int swing1[SERVO_COUNT] = {90, 90, 90, 90 + height, 90, 90};
-    int swing2[SERVO_COUNT] = {90, 90, 90, 90 - height, 90, 90};
-    for (int i = 0; i < steps; i++) {
-        otto_move_servos(otto, period, swing1);
-        otto_move_servos(otto, period, swing2);
-    }
+    int A[SERVO_COUNT] = {0, 0, height, height, 0, 0};
+    int O[SERVO_COUNT] = {0, 0, height / 2, -height / 2, HAND_HOME_POSITION, 180 - HAND_HOME_POSITION};
+    double phase_diff[SERVO_COUNT] = {0, 0, 0, 0, 0, 0};
+
+    otto_execute(otto, A, O, period, phase_diff, steps);
 }
 
 void otto_tiptoe_swing(otto_t *otto, float steps, int period, int height) {
-    int swing1[SERVO_COUNT] = {90 - height, 90 + height, 90, 90 + height, 90, 90};
-    int swing2[SERVO_COUNT] = {90 + height, 90 - height, 90, 90 - height, 90, 90};
-    for (int i = 0; i < steps; i++) {
-        otto_move_servos(otto, period, swing1);
-        otto_move_servos(otto, period, swing2);
-    }
+    int A[SERVO_COUNT] = {0, 0, height, height, 0, 0};
+    int O[SERVO_COUNT] = {0, 0, height, -height, HAND_HOME_POSITION, 180 - HAND_HOME_POSITION};
+    double phase_diff[SERVO_COUNT] = {0, 0, 0, 0, 0, 0};
+
+    otto_execute(otto, A, O, period, phase_diff, steps);
 }
 
 void otto_jitter(otto_t *otto, float steps, int period, int height) {
-    int jitter_up[SERVO_COUNT] = {90 - height, 90 + height, 90 - height, 90 + height, 90, 90};
-    int jitter_down[SERVO_COUNT] = {90 + height, 90 - height, 90 + height, 90 - height, 90, 90};
-    for (int i = 0; i < steps; i++) {
-        otto_move_servos(otto, period, jitter_up);
-        otto_move_servos(otto, period, jitter_down);
-    }
+    if (height > 25) height = 25;
+    int A[SERVO_COUNT] = {height, height, 0, 0, 0, 0};
+    int O[SERVO_COUNT] = {0, 0, 0, 0, HAND_HOME_POSITION, 180 - HAND_HOME_POSITION};
+    double phase_diff[SERVO_COUNT] = {DEG2RAD(-90), DEG2RAD(90), 0, 0, 0, 0};
+
+    otto_execute(otto, A, O, period, phase_diff, steps);
 }
 
 void otto_ascending_turn(otto_t *otto, float steps, int period, int height) {
-    for (int i = 0; i < steps; i++) {
-        int ascend[SERVO_COUNT] = {90 - height, 90 + height, 90 - height, 90 + height, 90, 90};
-        int descend[SERVO_COUNT] = {90, 90, 90, 90, 90, 90};
-        otto_move_servos(otto, period, ascend);
-        otto_move_servos(otto, period, descend);
-    }
+    if (height > 13) height = 13;
+    int A[SERVO_COUNT] = {height, height, height, height, 0, 0};
+    int O[SERVO_COUNT] = {0, 0, height + 4, -height + 4, HAND_HOME_POSITION, 180 - HAND_HOME_POSITION};
+    double phase_diff[SERVO_COUNT] = {DEG2RAD(-90), DEG2RAD(90), DEG2RAD(-90), DEG2RAD(90), 0, 0};
+
+    otto_execute(otto, A, O, period, phase_diff, steps);
 }
 
 void otto_moonwalker(otto_t *otto, float steps, int period, int height, int dir) {
-    int move_1[SERVO_COUNT] = {90, 90, 90, 90 + height, 90, 90};
-    int move_2[SERVO_COUNT] = {90, 90, 90 - 20, 90 + height, 90, 90};
-    int move_3[SERVO_COUNT] = {90, 90, 90 - 20, 90, 90, 90};
-    int move_4[SERVO_COUNT] = {90, 90, 90 - 20, 90 - height, 90, 90};
-    int move_5[SERVO_COUNT] = {90, 90, 90, 90 - height, 90, 90};
-    int move_6[SERVO_COUNT] = {90, 90, 90 + 20, 90 - height, 90, 90};
-    int move_7[SERVO_COUNT] = {90, 90, 90 + 20, 90, 90, 90};
-    int move_8[SERVO_COUNT] = {90, 90, 90 + 20, 90 + height, 90, 90};
+    int A[SERVO_COUNT] = {0, 0, height, height, 0, 0};
+    int O[SERVO_COUNT] = {0, 0, height / 2 + 2, -height / 2 - 2, HAND_HOME_POSITION, 180 - HAND_HOME_POSITION};
+    double phi = -dir * 90;
+    double phase_diff[SERVO_COUNT] = {0, 0, DEG2RAD(phi), DEG2RAD(-60 * dir + phi), 0, 0};
 
-    for (int i = 0; i < steps; i++) {
-        if (dir == LEFT) {
-            otto_move_servos(otto, period, move_1);
-            otto_move_servos(otto, period, move_2);
-            otto_move_servos(otto, period, move_3);
-            otto_move_servos(otto, period, move_4);
-            otto_move_servos(otto, period, move_5);
-            otto_move_servos(otto, period, move_6);
-            otto_move_servos(otto, period, move_7);
-            otto_move_servos(otto, period, move_8);
-        } else {
-            otto_move_servos(otto, period, move_8);
-            otto_move_servos(otto, period, move_7);
-            otto_move_servos(otto, period, move_6);
-            otto_move_servos(otto, period, move_5);
-            otto_move_servos(otto, period, move_4);
-            otto_move_servos(otto, period, move_3);
-            otto_move_servos(otto, period, move_2);
-            otto_move_servos(otto, period, move_1);
-        }
-    }
+    otto_execute(otto, A, O, period, phase_diff, steps);
 }
 
 void otto_crusaito(otto_t *otto, float steps, int period, int height, int dir) {
-    for (int i = 0; i < steps; i++) {
-        int move_up[SERVO_COUNT] = {90, 90 + 20, 90 - height, 90 - height, 90, 90};
-        int move_down[SERVO_COUNT] = {90, 90, 90, 90, 90, 90};
-        int move_forward[SERVO_COUNT] = {90, 90 + 20, 90 - height, 90 - height, 90 + 20, 90 + 20};
+    int A[SERVO_COUNT] = {25, 25, height, height, 0, 0};
+    int O[SERVO_COUNT] = {0, 0, height / 2 + 4, -height / 2 - 4, HAND_HOME_POSITION, 180 - HAND_HOME_POSITION};
+    double phase_diff[SERVO_COUNT] = {DEG2RAD(90), DEG2RAD(90), 0, DEG2RAD(-60 * dir), 0, 0};
 
-        if (dir == FORWARD) {
-            otto_move_servos(otto, period / 2, move_up);
-            otto_move_servos(otto, period / 2, move_down);
-            otto_move_servos(otto, period / 2, move_forward);
-            otto_move_servos(otto, period / 2, move_down);
-        } else {
-            otto_move_servos(otto, period / 2, move_up);
-            otto_move_servos(otto, period / 2, move_down);
-            move_forward[LEFT_LEG] = 90;
-            move_forward[RIGHT_LEG] = 90 - 20;
-            otto_move_servos(otto, period / 2, move_forward);
-            otto_move_servos(otto, period / 2, move_down);
-        }
-    }
+    otto_execute(otto, A, O, period, phase_diff, steps);
 }
 
 void otto_flapping(otto_t *otto, float steps, int period, int height, int dir) {
-    for (int i = 0; i < steps; i++) {
-        int flap1[SERVO_COUNT] = {90 - height, 90 + height, 90, 90, 90, 90};
-        int flap2[SERVO_COUNT] = {90, 90, 90, 90, 90, 90};
-        int flap3[SERVO_COUNT] = {90 + height, 90 - height, 90, 90, 90, 90};
+    int A[SERVO_COUNT] = {12, 12, height, height, 0, 0};
+    int O[SERVO_COUNT] = {0, 0, height - 10, -height + 10, HAND_HOME_POSITION, 180 - HAND_HOME_POSITION};
+    double phase_diff[SERVO_COUNT] = {DEG2RAD(0), DEG2RAD(180), DEG2RAD(-90 * dir), DEG2RAD(90 * dir), 0, 0};
 
-        if (dir == FORWARD) {
-            otto_move_servos(otto, period, flap1);
-            otto_move_servos(otto, period, flap2);
-            otto_move_servos(otto, period, flap3);
-            otto_move_servos(otto, period, flap2);
-        } else {
-            otto_move_servos(otto, period, flap3);
-            otto_move_servos(otto, period, flap2);
-            otto_move_servos(otto, period, flap1);
-            otto_move_servos(otto, period, flap2);
-        }
-    }
+    otto_execute(otto, A, O, period, phase_diff, steps);
 }
 
 void otto_whirlwind_leg(otto_t *otto, float steps, int period, int amplitude) {
+    int target[SERVO_COUNT] = {90, 90, 180, 90, HAND_HOME_POSITION, 20};
+    otto_move_servos(otto, 100, target);
+    target[RIGHT_FOOT] = 160;
+    otto_move_servos(otto, 500, target);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
     for (int i = 0; i < steps; i++) {
         for (int j = 0; j < 8; j++) {
-            int angle = (j * 180) / 8;
-            int whirl[SERVO_COUNT] = {90 + amplitude, 90 + amplitude, 90 + amplitude, 90 + amplitude, 90, 90};
+            int angle = 90 + (j * 180) / 8;
+            int whirl[SERVO_COUNT] = {angle, angle, 180, 160, HAND_HOME_POSITION, 20};
             otto_move_servos(otto, period / 8, whirl);
         }
     }
@@ -411,271 +379,247 @@ void otto_whirlwind_leg(otto_t *otto, float steps, int period, int amplitude) {
 
 void otto_hands_up(otto_t *otto, int period, int dir) {
     if (!otto->has_hands) {
-        ESP_LOGW(TAG, "Otto has no hands!");
         return;
     }
 
+    int target[SERVO_COUNT] = {90, 90, 90, 90, HAND_HOME_POSITION, 180 - HAND_HOME_POSITION};
+
     if (dir == 0) {
-        int up_both[SERVO_COUNT] = {90, 90, 90, 90, 180, 180};
-        otto_move_servos(otto, period, up_both);
+        target[LEFT_HAND] = 170;
+        target[RIGHT_HAND] = 10;
     } else if (dir > 0) {
-        int up_left[SERVO_COUNT] = {90, 90, 90, 90, 180, 90};
-        otto_move_servos(otto, period, up_left);
+        target[LEFT_HAND] = 170;
     } else {
-        int up_right[SERVO_COUNT] = {90, 90, 90, 90, 90, 180};
-        otto_move_servos(otto, period, up_right);
+        target[RIGHT_HAND] = 10;
     }
+
+    otto_move_servos(otto, period, target);
 }
 
 void otto_hands_down(otto_t *otto, int period, int dir) {
     if (!otto->has_hands) {
-        ESP_LOGW(TAG, "Otto has no hands!");
         return;
     }
 
-    if (dir == 0) {
-        int down_both[SERVO_COUNT] = {90, 90, 90, 90, 0, 0};
-        otto_move_servos(otto, period, down_both);
-    } else if (dir > 0) {
-        int down_left[SERVO_COUNT] = {90, 90, 90, 90, 0, 90};
-        otto_move_servos(otto, period, down_left);
-    } else {
-        int down_right[SERVO_COUNT] = {90, 90, 90, 90, 90, 0};
-        otto_move_servos(otto, period, down_right);
+    int target[SERVO_COUNT] = {90, 90, 90, 90, HAND_HOME_POSITION, 180 - HAND_HOME_POSITION};
+    otto_move_servos(otto, period, target);
+}
+
+static void otto_hand_wave_internal(otto_t *otto, int dir) {
+    if (!otto->has_hands) {
+        return;
     }
+
+    if (dir == LEFT) {
+        for (int i = 0; i < 5; i++) {
+            int wave1[SERVO_COUNT] = {90, 90, 90, 90, 160, 135};
+            int wave2[SERVO_COUNT] = {90, 90, 90, 90, 100, 135};
+            otto_move_servos(otto, 150, wave1);
+            otto_move_servos(otto, 150, wave2);
+        }
+    } else if (dir == RIGHT) {
+        for (int i = 0; i < 5; i++) {
+            int wave1[SERVO_COUNT] = {90, 90, 90, 90, 45, 20};
+            int wave2[SERVO_COUNT] = {90, 90, 90, 90, 45, 70};
+            otto_move_servos(otto, 150, wave1);
+            otto_move_servos(otto, 150, wave2);
+        }
+    } else {
+        for (int i = 0; i < 3; i++) {
+            int wave[SERVO_COUNT] = {90, 90, 90, 90, 160, 20};
+            otto_move_servos(otto, 150, wave);
+            wave[LEFT_HAND] = 45;
+            wave[RIGHT_HAND] = 135;
+            otto_move_servos(otto, 150, wave);
+        }
+    }
+
+    otto_home(otto, true);
 }
 
 void otto_hand_wave(otto_t *otto, int dir) {
     if (!otto->has_hands) {
-        ESP_LOGW(TAG, "Otto has no hands!");
         return;
     }
-
-    for (int i = 0; i < 3; i++) {
-        if (dir == LEFT) {
-            int wave1[SERVO_COUNT] = {90, 90, 90, 90, 120, 0};
-            int wave2[SERVO_COUNT] = {90, 90, 90, 90, 90, 0};
-            int wave3[SERVO_COUNT] = {90, 90, 90, 90, 120, 0};
-            int wave4[SERVO_COUNT] = {90, 90, 90, 90, 90, 0};
-            otto_move_servos(otto, 200, wave1);
-            otto_move_servos(otto, 200, wave2);
-            otto_move_servos(otto, 200, wave3);
-            otto_move_servos(otto, 200, wave4);
-        } else {
-            int wave1[SERVO_COUNT] = {90, 90, 90, 90, 0, 120};
-            int wave2[SERVO_COUNT] = {90, 90, 90, 90, 0, 90};
-            int wave3[SERVO_COUNT] = {90, 90, 90, 90, 0, 120};
-            int wave4[SERVO_COUNT] = {90, 90, 90, 90, 0, 90};
-            otto_move_servos(otto, 200, wave1);
-            otto_move_servos(otto, 200, wave2);
-            otto_move_servos(otto, 200, wave3);
-            otto_move_servos(otto, 200, wave4);
-        }
-    }
+    otto_hand_wave_internal(otto, dir);
 }
 
 void otto_windmill(otto_t *otto, float steps, int period, int amplitude) {
     if (!otto->has_hands) {
-        ESP_LOGW(TAG, "Otto has no hands!");
         return;
     }
 
-    for (int i = 0; i < steps; i++) {
-        int windmill1[SERVO_COUNT] = {90, 90, 90 - 30, 90 + 30, 90 + amplitude, 90 + amplitude};
-        int windmill2[SERVO_COUNT] = {90, 90, 90, 90, 90 + amplitude, 90 + amplitude};
-        int windmill3[SERVO_COUNT] = {90, 90, 90 + 30, 90 - 30, 90 + amplitude, 90 + amplitude};
-        int windmill4[SERVO_COUNT] = {90, 90, 90, 90, 90 + amplitude, 90 + amplitude};
-
-        otto_move_servos(otto, period, windmill1);
-        otto_move_servos(otto, period, windmill2);
-        otto_move_servos(otto, period, windmill3);
-        otto_move_servos(otto, period, windmill4);
+    for (int i = 0; i < (int)(steps * 8); i++) {
+        int pos = 90 + (i % 2 == 0 ? amplitude : -amplitude);
+        int windmill[SERVO_COUNT] = {90, 90, 90, 90, pos, 180 - pos};
+        otto_move_servos(otto, period / 8, windmill);
     }
 }
 
 void otto_takeoff(otto_t *otto, float steps, int period, int amplitude) {
     if (!otto->has_hands) {
-        ESP_LOGW(TAG, "Otto has no hands!");
         return;
     }
 
-    int takeoff1[SERVO_COUNT] = {90, 90, 90, 90, 90 + amplitude, 90 + amplitude};
-    int takeoff2[SERVO_COUNT] = {90, 90, 90 - amplitude, 90 + amplitude, 90 + amplitude, 90 + amplitude};
-    int takeoff3[SERVO_COUNT] = {90, 90, 90, 90, 90 + amplitude, 90 + amplitude};
+    otto_home(otto, true);
 
-    for (int i = 0; i < steps; i++) {
-        otto_move_servos(otto, period, takeoff1);
-        otto_move_servos(otto, period, takeoff2);
-        otto_move_servos(otto, period, takeoff3);
+    for (int i = 0; i < (int)(steps * 4); i++) {
+        int up[SERVO_COUNT] = {90, 90, 90, 90, 90 + amplitude, 90 - amplitude};
+        int down[SERVO_COUNT] = {90, 90, 90, 90, 90, 90};
+        otto_move_servos(otto, period / 4, up);
+        otto_move_servos(otto, period / 4, down);
     }
 }
 
 void otto_fitness(otto_t *otto, float steps, int period, int amplitude) {
     if (!otto->has_hands) {
-        ESP_LOGW(TAG, "Otto has no hands!");
         return;
     }
 
-    for (int i = 0; i < steps; i++) {
-        int fit1[SERVO_COUNT] = {90, 90, 90 - 30, 90 + 30, 90, 90};
-        int fit2[SERVO_COUNT] = {90, 90, 90, 90, 90, 90};
-        int fit3[SERVO_COUNT] = {90, 90, 90 + 30, 90 - 30, 90, 90};
-        int fit4[SERVO_COUNT] = {90, 90, 90, 90, 90, 90};
-        int fit5[SERVO_COUNT] = {90, 90, 90, 90, 90 + amplitude, 90 + amplitude};
-        int fit6[SERVO_COUNT] = {90, 90, 90, 90, 90, 90};
-        int fit7[SERVO_COUNT] = {90, 90, 90, 90, 90 - amplitude, 90 - amplitude};
-        int fit8[SERVO_COUNT] = {90, 90, 90, 90, 90, 90};
+    int target[SERVO_COUNT] = {90, 90, 90, 0, 160, 135};
+    otto_move_servos(otto, 100, target);
+    target[LEFT_FOOT] = 20;
+    otto_move_servos(otto, 400, target);
+    vTaskDelay(pdMS_TO_TICKS(2000));
 
-        otto_move_servos(otto, period, fit1);
-        otto_move_servos(otto, period, fit2);
-        otto_move_servos(otto, period, fit3);
-        otto_move_servos(otto, period, fit4);
-        otto_move_servos(otto, period, fit5);
-        otto_move_servos(otto, period, fit6);
-        otto_move_servos(otto, period, fit7);
-        otto_move_servos(otto, period, fit8);
+    for (int i = 0; i < (int)steps; i++) {
+        int fit1[SERVO_COUNT] = {90, 90, 20, 90, 160, 135};
+        int fit2[SERVO_COUNT] = {90, 90, 20, 90, 160, 135 - amplitude};
+        otto_move_servos(otto, period / 2, fit1);
+        otto_move_servos(otto, period / 2, fit2);
     }
 }
 
 void otto_greeting(otto_t *otto, int dir, float steps) {
     if (!otto->has_hands) {
-        ESP_LOGW(TAG, "Otto has no hands!");
         return;
     }
 
-    for (int i = 0; i < steps; i++) {
-        if (dir == LEFT) {
-            int greet1[SERVO_COUNT] = {90, 90, 90, 90, 90, 0};
-            int greet2[SERVO_COUNT] = {90, 90, 90, 90, 120, 0};
-            int greet3[SERVO_COUNT] = {90, 90, 90, 90, 150, 0};
-            int greet4[SERVO_COUNT] = {90, 90, 90, 90, 120, 0};
-
-            otto_move_servos(otto, 200, greet1);
-            otto_move_servos(otto, 200, greet2);
-            otto_move_servos(otto, 200, greet3);
-            otto_move_servos(otto, 200, greet4);
-        } else {
-            int greet1[SERVO_COUNT] = {90, 90, 90, 90, 0, 90};
-            int greet2[SERVO_COUNT] = {90, 90, 90, 90, 0, 120};
-            int greet3[SERVO_COUNT] = {90, 90, 90, 90, 0, 150};
-            int greet4[SERVO_COUNT] = {90, 90, 90, 90, 0, 120};
-
-            otto_move_servos(otto, 200, greet1);
-            otto_move_servos(otto, 200, greet2);
-            otto_move_servos(otto, 200, greet3);
-            otto_move_servos(otto, 200, greet4);
+    if (dir == LEFT) {
+        int target[SERVO_COUNT] = {90, 90, 150, 150, 45, 135};
+        otto_move_servos(otto, 400, target);
+        for (int i = 0; i < (int)steps; i++) {
+            int greet[SERVO_COUNT] = {90, 90, 150, 150, 160, 135};
+            otto_move_servos(otto, 300, greet);
+            greet[LEFT_HAND] = 100;
+            otto_move_servos(otto, 300, greet);
+        }
+    } else {
+        int target[SERVO_COUNT] = {90, 90, 30, 30, 45, 135};
+        otto_move_servos(otto, 400, target);
+        for (int i = 0; i < (int)steps; i++) {
+            int greet[SERVO_COUNT] = {90, 90, 30, 30, 45, 20};
+            otto_move_servos(otto, 300, greet);
+            greet[RIGHT_HAND] = 70;
+            otto_move_servos(otto, 300, greet);
         }
     }
 }
 
 void otto_shy(otto_t *otto, int dir, float steps) {
     if (!otto->has_hands) {
-        ESP_LOGW(TAG, "Otto has no hands!");
         return;
     }
 
-    for (int i = 0; i < steps; i++) {
-        if (dir == LEFT) {
-            int shy1[SERVO_COUNT] = {90, 90, 90, 90, 90, 0};
-            int shy2[SERVO_COUNT] = {90, 90, 90, 90, 90, 60};
-            int shy3[SERVO_COUNT] = {90, 90, 90, 90, 90, 30};
-            int shy4[SERVO_COUNT] = {90, 90, 90, 90, 90, 60};
-            int shy5[SERVO_COUNT] = {90, 90, 90, 90, 90, 0};
-
-            otto_move_servos(otto, 200, shy1);
-            otto_move_servos(otto, 200, shy2);
-            otto_move_servos(otto, 200, shy3);
-            otto_move_servos(otto, 200, shy4);
-            otto_move_servos(otto, 200, shy5);
-        } else {
-            int shy1[SERVO_COUNT] = {90, 90, 90, 90, 0, 90};
-            int shy2[SERVO_COUNT] = {90, 90, 90, 90, 60, 90};
-            int shy3[SERVO_COUNT] = {90, 90, 90, 90, 30, 90};
-            int shy4[SERVO_COUNT] = {90, 90, 90, 90, 60, 90};
-            int shy5[SERVO_COUNT] = {90, 90, 90, 90, 0, 90};
-
-            otto_move_servos(otto, 200, shy1);
-            otto_move_servos(otto, 200, shy2);
-            otto_move_servos(otto, 200, shy3);
-            otto_move_servos(otto, 200, shy4);
-            otto_move_servos(otto, 200, shy5);
+    if (dir == LEFT) {
+        int target[SERVO_COUNT] = {90, 90, 150, 150, 45, 135};
+        otto_move_servos(otto, 400, target);
+        for (int i = 0; i < (int)(steps * 4); i++) {
+            int shy1[SERVO_COUNT] = {90, 90, 150, 150, 45, 135};
+            int shy2[SERVO_COUNT] = {90, 90, 150, 150, 65, 115};
+            otto_move_servos(otto, 150, shy1);
+            otto_move_servos(otto, 150, shy2);
+        }
+    } else {
+        int target[SERVO_COUNT] = {90, 90, 30, 30, 45, 135};
+        otto_move_servos(otto, 400, target);
+        for (int i = 0; i < (int)(steps * 4); i++) {
+            int shy1[SERVO_COUNT] = {90, 90, 30, 30, 45, 135};
+            int shy2[SERVO_COUNT] = {90, 90, 30, 30, 65, 115};
+            otto_move_servos(otto, 150, shy1);
+            otto_move_servos(otto, 150, shy2);
         }
     }
 }
 
 void otto_radio_calisthenics(otto_t *otto) {
     if (!otto->has_hands) {
-        ESP_LOGW(TAG, "Otto has no hands!");
         return;
     }
 
-    for (int i = 0; i < 2; i++) {
-        int radio1[SERVO_COUNT] = {90, 90, 90, 90, 90, 90};
-        int radio2[SERVO_COUNT] = {90, 90, 90, 90, 180, 180};
-        int radio3[SERVO_COUNT] = {90, 90, 90 - 30, 90 + 30, 90, 90};
-        int radio4[SERVO_COUNT] = {90, 90, 90, 90, 90, 90};
-        int radio5[SERVO_COUNT] = {90, 90, 90 - 30, 90 + 30, 180, 180};
-        int radio6[SERVO_COUNT] = {90, 90, 90, 90, 90, 90};
-        int radio7[SERVO_COUNT] = {90, 90, 90, 90, 0, 0};
-        int radio8[SERVO_COUNT] = {90, 90, 90, 90, 90, 90};
+    const int period = 1000;
 
-        otto_move_servos(otto, 500, radio1);
-        otto_move_servos(otto, 500, radio2);
-        otto_move_servos(otto, 500, radio3);
-        otto_move_servos(otto, 500, radio4);
-        otto_move_servos(otto, 500, radio5);
-        otto_move_servos(otto, 500, radio6);
-        otto_move_servos(otto, 500, radio7);
-        otto_move_servos(otto, 500, radio8);
+    for (int round = 0; round < 8; round++) {
+        int c1[SERVO_COUNT] = {90, 90, 90, 90, 145, 45};
+        int a1[SERVO_COUNT] = {0, 0, 0, 0, 45, 45};
+        double ph1[SERVO_COUNT] = {0, 0, 0, 0, DEG2RAD(90), DEG2RAD(-90)};
+        otto_execute(otto, a1, (int[]){90, 90, 90, 90, 145, 45}, 1000, ph1, 1.0);
+
+        int c2[SERVO_COUNT] = {90, 90, 115, 65, 90, 90};
+        int a2[SERVO_COUNT] = {0, 0, 25, 25, 0, 0};
+        double ph2[SERVO_COUNT] = {0, 0, DEG2RAD(90), DEG2RAD(-90), 0, 0};
+        otto_execute(otto, a2, c2, 1000, ph2, 1.0);
+
+        int c3[SERVO_COUNT] = {90, 90, 130, 130, 90, 90};
+        int a3[SERVO_COUNT] = {0, 0, 0, 0, 20, 0};
+        double ph3[SERVO_COUNT] = {0, 0, 0, 0, 0, 0};
+        otto_execute(otto, a3, c3, 1000, ph3, 1.0);
+
+        int c4[SERVO_COUNT] = {90, 90, 50, 50, 90, 90};
+        int a4[SERVO_COUNT] = {0, 0, 0, 0, 0, 20};
+        double ph4[SERVO_COUNT] = {0, 0, 0, 0, 0, 0};
+        otto_execute(otto, a4, c4, 1000, ph4, 1.0);
     }
 }
 
 void otto_magic_circle(otto_t *otto) {
     if (!otto->has_hands) {
-        ESP_LOGW(TAG, "Otto has no hands!");
-        otto_turn(otto, 4, 500, LEFT, 25);
         return;
     }
 
-    for (int i = 0; i < 4; i++) {
-        int magic1[SERVO_COUNT] = {90, 90, 90, 90, 90, 90};
-        int magic2[SERVO_COUNT] = {90, 90, 90 - 30, 90 + 30, 90, 90};
-        int magic3[SERVO_COUNT] = {90, 90, 90 - 30, 90 + 30, 180, 180};
-        int magic4[SERVO_COUNT] = {90, 90, 90, 90, 180, 180};
-        int magic5[SERVO_COUNT] = {90, 90, 90 - 30, 90 + 30, 180, 180};
-        int magic6[SERVO_COUNT] = {90, 90, 90, 90, 90, 90};
-        int magic7[SERVO_COUNT] = {90, 90, 90 - 30, 90 + 30, 0, 0};
-        int magic8[SERVO_COUNT] = {90, 90, 90, 90, 0, 0};
-        int magic9[SERVO_COUNT] = {90, 90, 90 - 30, 90 + 30, 0, 0};
-        int magic10[SERVO_COUNT] = {90, 90, 90, 90, 90, 90};
+    int A[SERVO_COUNT] = {30, 30, 30, 30, 50, 50};
+    int O[SERVO_COUNT] = {0, 0, 5, -5, 0, 0};
+    double phase_diff[SERVO_COUNT] = {0, 0, DEG2RAD(-90), DEG2RAD(-90), DEG2RAD(-90), DEG2RAD(90)};
 
-        otto_move_servos(otto, 200, magic1);
-        otto_move_servos(otto, 200, magic2);
-        otto_move_servos(otto, 200, magic3);
-        otto_move_servos(otto, 200, magic4);
-        otto_move_servos(otto, 200, magic5);
-        otto_move_servos(otto, 200, magic6);
-        otto_move_servos(otto, 200, magic7);
-        otto_move_servos(otto, 200, magic8);
-        otto_move_servos(otto, 200, magic9);
-        otto_move_servos(otto, 200, magic10);
-    }
+    otto_execute(otto, A, O, 700, phase_diff, 40);
 }
 
 void otto_showcase(otto_t *otto) {
-    ESP_LOGI(TAG, "Running showcase...");
+    if (otto_get_rest_state(otto) == true) {
+        otto_set_rest_state(otto, false);
+    }
+
+    otto_walk(otto, 3, 1000, FORWARD, 50);
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    if (otto->has_hands) {
+        otto_hand_wave_internal(otto, LEFT);
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+
+    if (otto->has_hands) {
+        otto_radio_calisthenics(otto);
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+
+    otto_moonwalker(otto, 3, 900, 25, LEFT);
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    otto_swing(otto, 3, 1000, 30);
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    if (otto->has_hands) {
+        otto_takeoff(otto, 5, 300, 40);
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+
+    if (otto->has_hands) {
+        otto_fitness(otto, 5, 1000, 25);
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+
+    otto_walk(otto, 3, 1000, BACKWARD, 50);
+    vTaskDelay(pdMS_TO_TICKS(500));
+
     otto_home(otto, true);
-    vTaskDelay(pdMS_TO_TICKS(500));
-
-    otto_jump(otto, 3, 1000);
-    vTaskDelay(pdMS_TO_TICKS(500));
-
-    otto_walk(otto, 4, 1000, FORWARD, 25);
-    vTaskDelay(pdMS_TO_TICKS(500));
-
-    otto_turn(otto, 4, 1000, LEFT, 25);
-    vTaskDelay(pdMS_TO_TICKS(500));
-
-    otto_home(otto, true);
-    ESP_LOGI(TAG, "Showcase complete");
 }

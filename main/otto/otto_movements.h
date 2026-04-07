@@ -74,7 +74,4 @@ void otto_radio_calisthenics(otto_t *otto);
 void otto_magic_circle(otto_t *otto);
 void otto_showcase(otto_t *otto);
 
-void otto_execute(otto_t *otto, int amplitude[], int offset[], int period, double phase_diff[], float steps);
-void otto_oscillate_servos(otto_t *otto, int amplitude[], int offset[], int period, double phase_diff[], float cycle);
-
 #endif
