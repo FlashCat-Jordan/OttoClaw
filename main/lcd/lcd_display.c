@@ -27,20 +27,19 @@
 
 static const char *TAG = "lcd";
 
-/* Pin definitions - ESP32-S3 safe GPIOs */
+/* Pin definitions - Otto robot with camera version */
 #define LCD_HOST       SPI3_HOST
-#define LCD_PIXEL_CLK  (1 * 1000 * 1000)  // 1MHz (very slow for stability)
+#define LCD_PIXEL_CLK  (40 * 1000 * 1000)  // 40MHz
 
-/* LCD pin configuration based on schematic (8P ST7789 240*240, from left to right):
- * GND VCC3.3V GPIO21 GPIO47 GPIO45 GPIO40 GPIO41 GPIO42
- * Standard ST7789 8P pinout: GND VCC SCL SDA DC RES CS BL
+/* LCD pin configuration for Otto robot (with camera version):
+ * MOSI: GPIO 10, CLK: GPIO 9, DC: GPIO 46, RST: GPIO 11, CS: GPIO 12, BL: GPIO 3
  */
-#define PIN_SCLK       21   // SCL/SCLK (3rd pin)
-#define PIN_MOSI       47   // SDA/MOSI (4th pin)
-#define PIN_DC         45   // DC (Data/Command) (5th pin)
-#define PIN_RST        40   // RES (6th pin)
-#define PIN_CS         41   // CS (7th pin)
-#define PIN_BL         42   // Backlight (8th pin)
+#define PIN_SCLK       9    // CLK
+#define PIN_MOSI       10   // MOSI
+#define PIN_DC         46   // DC (Data/Command)
+#define PIN_RST        11   // RST
+#define PIN_CS         12   // CS
+#define PIN_BL         3    // Backlight
 
 #define LCD_H_RES      240
 #define LCD_V_RES      240
@@ -98,11 +97,8 @@ esp_err_t lcd_display_init(void)
         .pclk_hz = LCD_PIXEL_CLK,
         .lcd_cmd_bits = 8,
         .lcd_param_bits = 8,
-        .spi_mode = 0,
+        .spi_mode = 3,
         .trans_queue_depth = 10,
-        .flags = {
-            .dc_low_on_data = 0,
-        },
     };
     ESP_LOGI(TAG, "Creating panel IO...");
     ret = esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)LCD_HOST, &io_config, &io_handle);
