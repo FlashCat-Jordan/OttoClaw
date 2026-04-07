@@ -16,6 +16,11 @@ typedef struct {
 esp_err_t tool_registry_init(void);
 
 /**
+ * Register a tool with the registry.
+ */
+void tool_registry_register(const mimi_tool_t *tool);
+
+/**
  * Get the pre-built tools JSON array string for the API request.
  * Returns NULL if no tools are registered.
  */

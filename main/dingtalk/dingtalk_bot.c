@@ -6,6 +6,7 @@
 #include "esp_transport.h"
 #include "esp_transport_ssl.h"
 #include "esp_transport_ws.h"
+#include "esp_crt_bundle.h"
 #include "cJSON.h"
 #include "nvs_flash.h"
 #include "nvs.h"
@@ -186,7 +187,7 @@ static esp_err_t dingtalk_refresh_token(void)
         .method = HTTP_METHOD_GET,
         .timeout_ms = 10000,
         .disable_auto_redirect = false,
-        .cert_pem = NULL,
+        .crt_bundle_attach = esp_crt_bundle_attach,
     };
     
     char *buffer = malloc(2048);
@@ -335,10 +336,10 @@ static esp_err_t dingtalk_get_stream_credential(dingtalk_stream_credential_t *cr
         .url = url,
         .method = HTTP_METHOD_POST,
         .timeout_ms = 10000,
-        .cert_pem = NULL,
         .buffer_size = 4096,
         .buffer_size_tx = 4096,
         .disable_auto_redirect = true,
+        .crt_bundle_attach = esp_crt_bundle_attach,
     };
     
     esp_http_client_handle_t client = esp_http_client_init(&config);
@@ -538,7 +539,7 @@ static esp_err_t dingtalk_reply_to_message(const char *session_webhook, const ch
         .url = session_webhook,
         .method = HTTP_METHOD_POST,
         .timeout_ms = 10000,
-        .cert_pem = NULL,
+        .crt_bundle_attach = esp_crt_bundle_attach,
     };
     
     esp_http_client_handle_t client = esp_http_client_init(&config);
@@ -789,6 +790,7 @@ static void dingtalk_stream_task(void *arg)
         
         s_transport_list = esp_transport_list_init();
         esp_transport_handle_t ssl = esp_transport_ssl_init();
+        esp_transport_ssl_crt_bundle_attach(ssl, esp_crt_bundle_attach);
         esp_transport_ssl_skip_common_name_check(ssl);
         esp_transport_list_add(s_transport_list, ssl, "ssl");
         

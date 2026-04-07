@@ -26,8 +26,18 @@
 #include "cron/cron_service.h"
 #include "heartbeat/heartbeat_service.h"
 #include "voice/voice_transcription.h"
+#include "otto/otto_movements.h"
 
 static const char *TAG = "mimi";
+
+otto_t g_otto;
+
+static const int OTTO_LEFT_LEG = 17;
+static const int OTTO_RIGHT_LEG = 39;
+static const int OTTO_LEFT_FOOT = 18;
+static const int OTTO_RIGHT_FOOT = 38;
+static const int OTTO_LEFT_HAND = 8;
+static const int OTTO_RIGHT_HAND = 12;
 
 static esp_err_t init_nvs(void)
 {
@@ -131,6 +141,12 @@ void app_main(void)
     } else {
         ESP_LOGW(TAG, "LCD initialization failed: %s", esp_err_to_name(lcd_err));
     }
+
+    /* Initialize Otto robot */
+    ESP_LOGI(TAG, "Initializing Otto robot...");
+    otto_init(&g_otto, OTTO_LEFT_LEG, OTTO_RIGHT_LEG, OTTO_LEFT_FOOT, OTTO_RIGHT_FOOT, OTTO_LEFT_HAND, OTTO_RIGHT_HAND);
+    otto_home(&g_otto, true);
+    ESP_LOGI(TAG, "Otto robot initialized successfully");
 
     /* Start WiFi */
     esp_err_t wifi_err = wifi_manager_start();

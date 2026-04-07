@@ -2,6 +2,7 @@
 #include "tools/tool_web_search.h"
 #include "tools/tool_get_time.h"
 #include "tools/tool_files.h"
+#include "tools/tool_otto.h"
 #include "../memory/memory_store.h"
 
 #include <string.h>
@@ -70,7 +71,7 @@ static mimi_tool_t s_tools[MAX_TOOLS];
 static int s_tool_count = 0;
 static char *s_tools_json = NULL;  /* cached JSON array string */
 
-static void register_tool(const mimi_tool_t *tool)
+void tool_registry_register(const mimi_tool_t *tool)
 {
     if (s_tool_count >= MAX_TOOLS) {
         ESP_LOGE(TAG, "Tool registry full");
@@ -120,7 +121,7 @@ esp_err_t tool_registry_init(void)
             "\"required\":[\"query\"]}",
         .execute = tool_web_search_execute,
     };
-    register_tool(&ws);
+    tool_registry_register(&ws);
 
     /* Register get_current_time */
     mimi_tool_t gt = {
@@ -132,7 +133,7 @@ esp_err_t tool_registry_init(void)
             "\"required\":[]}",
         .execute = tool_get_time_execute,
     };
-    register_tool(&gt);
+    tool_registry_register(&gt);
 
     /* Register read_file */
     mimi_tool_t rf = {
@@ -144,7 +145,7 @@ esp_err_t tool_registry_init(void)
             "\"required\":[\"path\"]}",
         .execute = tool_read_file_execute,
     };
-    register_tool(&rf);
+    tool_registry_register(&rf);
 
     /* Register write_file */
     mimi_tool_t wf = {
@@ -157,7 +158,7 @@ esp_err_t tool_registry_init(void)
             "\"required\":[\"path\",\"content\"]}",
         .execute = tool_write_file_execute,
     };
-    register_tool(&wf);
+    tool_registry_register(&wf);
 
     /* Register edit_file */
     mimi_tool_t ef = {
@@ -171,7 +172,7 @@ esp_err_t tool_registry_init(void)
             "\"required\":[\"path\",\"old_string\",\"new_string\"]}",
         .execute = tool_edit_file_execute,
     };
-    register_tool(&ef);
+    tool_registry_register(&ef);
 
     /* Register list_dir */
     mimi_tool_t ld = {
@@ -183,7 +184,7 @@ esp_err_t tool_registry_init(void)
             "\"required\":[]}",
         .execute = tool_list_dir_execute,
     };
-    register_tool(&ld);
+    tool_registry_register(&ld);
 
     /* Register memory_write */
     mimi_tool_t mw = {
@@ -195,7 +196,7 @@ esp_err_t tool_registry_init(void)
             "\"required\":[\"content\"]}",
         .execute = tool_memory_write_execute,
     };
-    register_tool(&mw);
+    tool_registry_register(&mw);
 
     /* Register memory_append_today */
     mimi_tool_t mat = {
@@ -207,7 +208,10 @@ esp_err_t tool_registry_init(void)
             "\"required\":[\"note\"]}",
         .execute = tool_memory_append_today_execute,
     };
-    register_tool(&mat);
+    tool_registry_register(&mat);
+
+    /* Register otto robot tools */
+    tool_otto_register();
 
     build_tools_json();
 
