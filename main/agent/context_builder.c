@@ -6,47 +6,28 @@
 #include <stdio.h>
 #include <string.h>
 #include "esp_log.h"
-#include "esp_memory_utils.h"
 #include "cJSON.h"
 
 static const char *TAG = "context";
 
-static size_t append_file_safe(char *buf, size_t size, size_t offset, const char *path, const char *header)
+static size_t append_file(char *buf, size_t size, size_t offset, const char *path, const char *header)
 {
-    if (!buf || size == 0 || offset >= size) {
-        return offset;
-    }
-
     FILE *f = fopen(path, "r");
-    if (!f) {
-        ESP_LOGW(TAG, "Could not open file: %s", path);
-        return offset;
-    }
+    if (!f) return offset;
 
     if (header && offset < size - 1) {
         offset += snprintf(buf + offset, size - offset, "\n## %s\n\n", header);
     }
 
-    size_t remaining = size - offset - 1;
-    if (remaining > 0) {
-        size_t n = fread(buf + offset, 1, remaining, f);
-        if (n > 0) {
-            offset += n;
-        }
-    }
+    size_t n = fread(buf + offset, 1, size - offset - 1, f);
+    offset += n;
     buf[offset] = '\0';
     fclose(f);
-
     return offset;
 }
 
 esp_err_t context_build_system_prompt(char *buf, size_t size)
 {
-    if (!buf || size < 256) {
-        return ESP_ERR_INVALID_SIZE;
-    }
-
-    memset(buf, 0, size);
     size_t off = 0;
 
     off += snprintf(buf + off, size - off,
@@ -77,26 +58,60 @@ esp_err_t context_build_system_prompt(char *buf, size_t size)
         "- Keep MEMORY.md concise and organized — summarize, don't dump raw conversation.\n"
         "- You should proactively save memory without being asked. If the user tells you their name, preferences, or important facts, persist them immediately.\n");
 
-    off = append_file_safe(buf, size, off, MIMI_IDENTITY_FILE, "Identity");
-    off = append_file_safe(buf, size, off, MIMI_AGENTS_FILE, "Agent Behavior");
-    off = append_file_safe(buf, size, off, MIMI_TOOLS_FILE, "Tool Documentation");
-    off = append_file_safe(buf, size, off, MIMI_SOUL_FILE, "Personality");
-    off = append_file_safe(buf, size, off, MIMI_USER_FILE, "User Info");
+    /* Bootstrap files */
+    off = append_file(buf, size, off, MIMI_IDENTITY_FILE, "Identity");
+    off = append_file(buf, size, off, MIMI_AGENTS_FILE, "Agent Behavior");
+    off = append_file(buf, size, off, MIMI_TOOLS_FILE, "Tool Documentation");
+    off = append_file(buf, size, off, MIMI_SOUL_FILE, "Personality");
+    off = append_file(buf, size, off, MIMI_USER_FILE, "User Info");
 
+    /* Long-term memory */
     char mem_buf[4096];
-    mem_buf[0] = '\0';
     if (memory_read_long_term(mem_buf, sizeof(mem_buf)) == ESP_OK && mem_buf[0]) {
-        if (off < size - 1) {
-            off += snprintf(buf + off, size - off, "\n## Long-term Memory\n\n%s\n", mem_buf);
-        }
+        off += snprintf(buf + off, size - off, "\n## Long-term Memory\n\n%s\n", mem_buf);
     }
 
+    /* Recent daily notes (last N days) */
     char recent_buf[4096];
-    recent_buf[0] = '\0';
     if (memory_read_recent(recent_buf, sizeof(recent_buf), MIMI_MEMORY_LOOKBACK_DAYS) == ESP_OK && recent_buf[0]) {
-        if (off < size - 1) {
-            off += snprintf(buf + off, size - off, "\n## Recent Notes\n\n%s\n", recent_buf);
-        }
+        off += snprintf(buf + off, size - off, "\n## Recent Notes\n\n%s\n", recent_buf);
+    }
+
+    /* Skills */
+    char skills_buf[8192];
+    if (skills_get_content(skills_buf, sizeof(skills_buf)) == ESP_OK) {
+        off += snprintf(buf + off, size - off, "%s", skills_buf);
+    }
+
+    ESP_LOGI(TAG, "System prompt built: %d bytes", (int)off);
+    return ESP_OK;
+}
+
+esp_err_t context_build_messages(const char *history_json, const char *user_message,
+                                 char *buf, size_t size)
+{
+    /* Parse existing history */
+    cJSON *history = cJSON_Parse(history_json);
+    if (!history) {
+        history = cJSON_CreateArray();
+    }
+
+    /* Append current user message */
+    cJSON *user_msg = cJSON_CreateObject();
+    cJSON_AddStringToObject(user_msg, "role", "user");
+    cJSON_AddStringToObject(user_msg, "content", user_message);
+    cJSON_AddItemToArray(history, user_msg);
+
+    /* Serialize */
+    char *json_str = cJSON_PrintUnformatted(history);
+    cJSON_Delete(history);
+
+    if (json_str) {
+        strncpy(buf, json_str, size - 1);
+        buf[size - 1] = '\0';
+        free(json_str);
+    } else {
+        snprintf(buf, size, "[{\"role\":\"user\",\"content\":\"%s\"}]", user_message);
     }
 
     return ESP_OK;

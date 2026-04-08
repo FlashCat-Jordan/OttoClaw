@@ -21,6 +21,8 @@ idf_component_register(
         "otto/oscillator.c"
         "otto/otto_movements.c"
         "lcd/lcd_display.c"
+        "lcd/font_chinese_14.c"
+        "lcd/font_chinese_12.c"
         "skills/skills.c"
         "cron/cron_service.c"
         "heartbeat/heartbeat_service.c"
@@ -31,4 +33,6 @@ idf_component_register(
         nvs_flash esp_wifi esp_netif esp_http_client esp_http_server
         esp_https_ota esp_event json spiffs console vfs app_update esp-tls
         esp_lcd driver spi_flash esp_timer tcp_transport lwip
+    PRIV_REQUIRES
+        lvgl
 )

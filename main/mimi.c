@@ -151,12 +151,16 @@ void app_main(void)
     /* Start WiFi */
     esp_err_t wifi_err = wifi_manager_start();
     if (wifi_err == ESP_OK) {
+        lcd_set_state(LCD_STATE_CONNECTING);
+        lcd_set_status_text("Connecting WiFi...");
         ESP_LOGI(TAG, "Scanning nearby APs on boot...");
         wifi_manager_scan_and_print();
         ESP_LOGI(TAG, "Waiting for WiFi connection...");
         
         if (wifi_manager_wait_connected(40000) == ESP_OK) {
             ESP_LOGI(TAG, "WiFi connected: %s", wifi_manager_get_ip());
+            lcd_set_state(LCD_STATE_CONNECTED);
+            lcd_set_status_text(wifi_manager_get_ip());
 
             /* Start network-dependent services */
             ESP_ERROR_CHECK(dingtalk_bot_start());
@@ -172,11 +176,17 @@ void app_main(void)
                 MIMI_OUTBOUND_PRIO, NULL, MIMI_OUTBOUND_CORE);
 
             ESP_LOGI(TAG, "All services started!");
+            vTaskDelay(pdMS_TO_TICKS(3000));
+            lcd_set_state(LCD_STATE_SLEEPING);
         } else {
             ESP_LOGW(TAG, "WiFi connection timeout (40s).");
+            lcd_set_state(LCD_STATE_ERROR);
+            lcd_set_status_text("WiFi timeout");
         }
     } else {
         ESP_LOGW(TAG, "No WiFi credentials.");
+        lcd_set_state(LCD_STATE_ERROR);
+        lcd_set_status_text("No WiFi config");
     }
 
     ESP_LOGI(TAG, "MimiClaw ready. Type 'help' for CLI commands.");
