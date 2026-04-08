@@ -16,7 +16,6 @@
 #include "lvgl.h"
 
 LV_FONT_DECLARE(font_chinese_14);
-LV_FONT_DECLARE(font_chinese_12);
 
 static const char *TAG = "lcd";
 
@@ -74,7 +73,7 @@ void lcd_backlight_set(bool on)
 static void setup_ui(void)
 {
     font_text = &font_chinese_14;
-    font_small = &font_chinese_12;
+    font_small = &lv_font_montserrat_14;
     font_icon = &lv_font_montserrat_16;
 
     screen = lv_screen_active();

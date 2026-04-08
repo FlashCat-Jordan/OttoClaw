@@ -22,7 +22,6 @@ idf_component_register(
         "otto/otto_movements.c"
         "lcd/lcd_display.c"
         "lcd/font_chinese_14.c"
-        "lcd/font_chinese_12.c"
         "skills/skills.c"
         "cron/cron_service.c"
         "heartbeat/heartbeat_service.c"
