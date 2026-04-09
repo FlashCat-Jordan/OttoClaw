@@ -152,7 +152,6 @@ void app_main(void)
     esp_err_t wifi_err = wifi_manager_start();
     if (wifi_err == ESP_OK) {
         lcd_set_state(LCD_STATE_CONNECTING);
-        lcd_set_status_text("Connecting WiFi...");
         ESP_LOGI(TAG, "Scanning nearby APs on boot...");
         wifi_manager_scan_and_print();
         ESP_LOGI(TAG, "Waiting for WiFi connection...");
@@ -160,7 +159,7 @@ void app_main(void)
         if (wifi_manager_wait_connected(40000) == ESP_OK) {
             ESP_LOGI(TAG, "WiFi connected: %s", wifi_manager_get_ip());
             lcd_set_state(LCD_STATE_CONNECTED);
-            lcd_set_status_text(wifi_manager_get_ip());
+            // IP地址不再显示在屏幕上
 
             /* Start network-dependent services */
             ESP_ERROR_CHECK(dingtalk_bot_start());
