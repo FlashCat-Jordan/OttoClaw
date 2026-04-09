@@ -316,14 +316,18 @@
             const dingtalkStatus = document.getElementById('dingtalk-status');
             const completeBtn = document.getElementById('complete-btn');
 
-            wifiStatus.textContent = data.wifi.configured ? '已配置' : '待配置';
-            wifiStatus.className = 'status ' + (data.wifi.configured ? 'done' : 'pending');
+            const wifiConfigured = !!(data.wifi && data.wifi.configured);
+            const llmConfigured = !!(data.llm && data.llm.configured);
+            const dingtalkConfigured = !!(data.dingtalk && data.dingtalk.configured);
 
-            llmStatus.textContent = data.llm.configured ? '已配置' : '待配置';
-            llmStatus.className = 'status ' + (data.llm.configured ? 'done' : 'pending');
+            wifiStatus.textContent = wifiConfigured ? '已配置' : '待配置';
+            wifiStatus.className = 'status ' + (wifiConfigured ? 'done' : 'pending');
 
-            dingtalkStatus.textContent = data.dingtalk.configured ? '已配置' : '待配置';
-            dingtalkStatus.className = 'status ' + (data.dingtalk.configured ? 'done' : 'pending');
+            llmStatus.textContent = llmConfigured ? '已配置' : '待配置';
+            llmStatus.className = 'status ' + (llmConfigured ? 'done' : 'pending');
+
+            dingtalkStatus.textContent = dingtalkConfigured ? '已配置' : '待配置';
+            dingtalkStatus.className = 'status ' + (dingtalkConfigured ? 'done' : 'pending');
 
             completeBtn.disabled = !data.complete;
 
@@ -335,20 +339,24 @@
             const configLlm = document.getElementById('config-llm');
             const configDingtalk = document.getElementById('config-dingtalk');
 
-            if (data.wifi.configured) {
-                configWifi.innerHTML = `<span style="color: #4ade80;">✓</span> ${data.wifi.ssid || '已配置'}`;
+            const wifi = data.wifi || {};
+            const llm = data.llm || {};
+            const dingtalk = data.dingtalk || {};
+
+            if (wifi.configured) {
+                configWifi.innerHTML = `<span style="color: #4ade80;">✓</span> ${wifi.ssid || '已配置'}`;
             } else {
                 configWifi.textContent = '未配置';
             }
 
-            if (data.llm.configured) {
-                configLlm.innerHTML = `<span style="color: #4ade80;">✓</span> ${data.llm.provider || '已配置'} - ${data.llm.model || '未指定模型'}`;
+            if (llm.configured) {
+                configLlm.innerHTML = `<span style="color: #4ade80;">✓</span> ${llm.provider || '已配置'} - ${llm.model || '未指定模型'}`;
             } else {
                 configLlm.textContent = '未配置';
             }
 
-            if (data.dingtalk.configured) {
-                configDingtalk.innerHTML = `<span style="color: #4ade80;">✓</span> ${data.dingtalk.app_key || '已配置'}`;
+            if (dingtalk.configured) {
+                configDingtalk.innerHTML = `<span style="color: #4ade80;">✓</span> ${dingtalk.app_key || '已配置'}`;
             } else {
                 configDingtalk.textContent = '未配置';
             }
@@ -362,13 +370,20 @@
                 const response = await fetch(`${API_BASE}/wifi/scan`);
                 const data = await response.json();
 
+                if (!data.ok) {
+                    wifiList.innerHTML = '<div class="loading">扫描失败</div>';
+                    showError(data.msg || 'WiFi扫描失败');
+                    return;
+                }
+
+                const aps = Array.isArray(data.aps) ? data.aps : [];
                 wifiList.innerHTML = '';
-                if (data.aps.length === 0) {
+                if (aps.length === 0) {
                     wifiList.innerHTML = '<div class="loading">未找到WiFi网络</div>';
                     return;
                 }
 
-                data.aps.forEach(ap => {
+                aps.forEach(ap => {
                     const item = document.createElement('div');
                     item.className = 'wifi-item';
                     item.innerHTML = `
@@ -412,12 +427,12 @@
                 });
 
                 const data = await response.json();
-                if (data.success) {
+                if (data.ok) {
                     showSuccess('WiFi配置已保存');
                     cancelWiFi();
                     checkStatus();
                 } else {
-                    showError(data.error || 'WiFi配置失败');
+                    showError(data.msg || 'WiFi配置失败');
                 }
             } catch (error) {
                 showError('WiFi配置失败: ' + error.message);
@@ -448,11 +463,11 @@
                 });
 
                 const data = await response.json();
-                if (data.success) {
+                if (data.ok) {
                     showSuccess('LLM配置已保存');
                     checkStatus();
                 } else {
-                    showError(data.error || 'LLM配置失败');
+                    showError(data.msg || 'LLM配置失败');
                 }
             } catch (error) {
                 showError('LLM配置失败: ' + error.message);
@@ -479,11 +494,11 @@
                 });
 
                 const data = await response.json();
-                if (data.success) {
+                if (data.ok) {
                     showSuccess('钉钉配置已保存');
                     checkStatus();
                 } else {
-                    showError(data.error || '钉钉配置失败');
+                    showError(data.msg || '钉钉配置失败');
                 }
             } catch (error) {
                 showError('钉钉配置失败: ' + error.message);
@@ -501,13 +516,13 @@
                 });
 
                 const data = await response.json();
-                if (data.success) {
+                if (data.ok) {
                     showSuccess('配置完成！设备将在5秒后重启...');
                     setTimeout(() => {
                         location.reload();
                     }, 5000);
                 } else {
-                    showError(data.error || '完成配置失败');
+                    showError(data.msg || '完成配置失败');
                 }
             } catch (error) {
                 showError('完成配置失败: ' + error.message);
@@ -525,13 +540,13 @@
                 });
 
                 const data = await response.json();
-                if (data.success) {
+                if (data.ok) {
                     showSuccess('配置已重置！设备将在5秒后重启...');
                     setTimeout(() => {
                         location.reload();
                     }, 5000);
                 } else {
-                    showError(data.error || '重置配置失败');
+                    showError(data.msg || '重置配置失败');
                 }
             } catch (error) {
                 showError('重置配置失败: ' + error.message);
@@ -588,10 +603,10 @@
                 });
                 
                 const data = await response.json();
-                if (data.success) {
+                if (data.ok) {
                     addChatMessage(data.response, false);
                 } else {
-                    addChatMessage('错误: ' + (data.error || '对话测试失败'), false);
+                    addChatMessage('错误: ' + (data.msg || '对话测试失败'), false);
                 }
             } catch (error) {
                 addChatMessage('错误: ' + error.message, false);

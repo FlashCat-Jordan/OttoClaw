@@ -38,6 +38,8 @@ static const char *TAG = "config_portal";
 static httpd_handle_t s_server  = NULL;
 static bool           s_running = false;
 static esp_netif_t   *s_ap_netif = NULL;
+static esp_netif_t   *s_sta_netif = NULL;
+static char           s_ap_ssid[32] = "";
 
 /* Signal from /api/setup/complete or /api/setup/reset */
 #define PORTAL_DONE_BIT BIT0
@@ -125,16 +127,41 @@ static esp_err_t handle_status(httpd_req_t *req)
     nvs_safe_str(MIMI_NVS_PROXY,    MIMI_NVS_KEY_PROXY_PORT,      proxy_port, sizeof(proxy_port));
     nvs_safe_str(MIMI_NVS_SEARCH,   MIMI_NVS_KEY_SEARCH_KEY,      search_key, sizeof(search_key));
 
+    const char *provider_value = provider[0] ? provider : MIMI_LLM_PROVIDER_DEFAULT;
+    const char *model_value    = model[0]    ? model    : MIMI_LLM_DEFAULT_MODEL;
+    bool wifi_configured       = ssid[0] != '\0';
+    bool llm_configured        = provider_value[0] != '\0';
+    bool dingtalk_configured   = dt_key[0] != '\0' && dt_secret[0] != '\0';
+    bool complete              = wifi_configured && llm_configured;
+
     cJSON *root = cJSON_CreateObject();
-    cJSON_AddStringToObject(root, "wifi_ssid",     ssid);
-    cJSON_AddStringToObject(root, "llm_provider",  provider[0] ? provider : MIMI_LLM_PROVIDER_DEFAULT);
-    cJSON_AddStringToObject(root, "llm_model",     model[0]    ? model    : MIMI_LLM_DEFAULT_MODEL);
-    cJSON_AddStringToObject(root, "llm_base_url",  base_url);
-    cJSON_AddStringToObject(root, "dt_app_key",    dt_key);
-    cJSON_AddStringToObject(root, "dt_app_secret", dt_secret);
-    cJSON_AddStringToObject(root, "proxy_host",    proxy_host);
-    cJSON_AddStringToObject(root, "proxy_port",    proxy_port);
-    cJSON_AddStringToObject(root, "search_key",    search_key);
+    cJSON *wifi = cJSON_AddObjectToObject(root, "wifi");
+    cJSON *llm = cJSON_AddObjectToObject(root, "llm");
+    cJSON *dingtalk = cJSON_AddObjectToObject(root, "dingtalk");
+    cJSON *proxy = cJSON_AddObjectToObject(root, "proxy");
+    cJSON *search = cJSON_AddObjectToObject(root, "search");
+
+    cJSON_AddBoolToObject(root, "ok", true);
+    cJSON_AddBoolToObject(root, "complete", complete);
+    cJSON_AddStringToObject(root, "ap_ssid", s_ap_ssid[0] ? s_ap_ssid : "MiaomiaoClaw");
+
+    cJSON_AddBoolToObject(wifi, "configured", wifi_configured);
+    cJSON_AddStringToObject(wifi, "ssid", ssid);
+
+    cJSON_AddBoolToObject(llm, "configured", llm_configured);
+    cJSON_AddStringToObject(llm, "provider", provider_value);
+    cJSON_AddStringToObject(llm, "model", model_value);
+    cJSON_AddStringToObject(llm, "base_url", base_url);
+
+    cJSON_AddBoolToObject(dingtalk, "configured", dingtalk_configured);
+    cJSON_AddStringToObject(dingtalk, "app_key", dt_key);
+    cJSON_AddStringToObject(dingtalk, "app_secret", dt_secret);
+
+    cJSON_AddStringToObject(proxy, "host", proxy_host);
+    cJSON_AddStringToObject(proxy, "port", proxy_port);
+
+    cJSON_AddBoolToObject(search, "configured", search_key[0] != '\0');
+    cJSON_AddStringToObject(search, "key", search_key);
 
     char *json = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
@@ -151,20 +178,54 @@ static esp_err_t handle_wifi_scan(httpd_req_t *req)
     wifi_scan_config_t scan_cfg = {
         .ssid = NULL, .bssid = NULL, .channel = 0, .show_hidden = false,
     };
-    esp_wifi_scan_start(&scan_cfg, true /* blocking */);
+
+    esp_err_t err = esp_wifi_scan_start(&scan_cfg, true /* blocking */);
+    if (err == ESP_ERR_WIFI_STATE) {
+        ESP_LOGW(TAG, "WiFi scan busy in current state, restarting WiFi and retrying");
+        esp_wifi_stop();
+        vTaskDelay(pdMS_TO_TICKS(200));
+        esp_wifi_start();
+        vTaskDelay(pdMS_TO_TICKS(200));
+        err = esp_wifi_scan_start(&scan_cfg, true /* blocking */);
+    }
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "WiFi scan failed: %s", esp_err_to_name(err));
+        return send_json(req, 200, "{\"ok\":false,\"aps\":[],\"msg\":\"wifi scan failed\"}");
+    }
 
     uint16_t count = 0;
     esp_wifi_scan_get_ap_num(&count);
     if (count > 20) count = 20;
 
+    cJSON *root = cJSON_CreateObject();
+    cJSON *arr = cJSON_AddArrayToObject(root, "aps");
+    cJSON_AddBoolToObject(root, "ok", true);
+
+    if (count == 0) {
+        char *json = cJSON_PrintUnformatted(root);
+        cJSON_Delete(root);
+        esp_err_t ret = send_json(req, 200, json ? json : "{\"ok\":true,\"aps\":[]}");
+        free(json);
+        return ret;
+    }
+
     wifi_ap_record_t *list = calloc(count, sizeof(wifi_ap_record_t));
-    if (!list) { return send_json(req, 200, "[]"); }
+    if (!list) {
+        cJSON_Delete(root);
+        return send_json(req, 200, "{\"ok\":false,\"aps\":[],\"msg\":\"out of memory\"}");
+    }
 
     uint16_t max = count;
-    esp_wifi_scan_get_ap_records(&max, list);
+    err = esp_wifi_scan_get_ap_records(&max, list);
+    if (err != ESP_OK) {
+        free(list);
+        cJSON_Delete(root);
+        ESP_LOGE(TAG, "WiFi scan read failed: %s", esp_err_to_name(err));
+        return send_json(req, 200, "{\"ok\":false,\"aps\":[],\"msg\":\"wifi scan read failed\"}");
+    }
 
-    cJSON *arr = cJSON_CreateArray();
     for (uint16_t i = 0; i < max; i++) {
+        if (list[i].ssid[0] == '\0') continue;
         cJSON *ap = cJSON_CreateObject();
         cJSON_AddStringToObject(ap, "ssid", (char *)list[i].ssid);
         cJSON_AddNumberToObject(ap, "rssi", list[i].rssi);
@@ -173,9 +234,9 @@ static esp_err_t handle_wifi_scan(httpd_req_t *req)
     }
     free(list);
 
-    char *json = cJSON_PrintUnformatted(arr);
-    cJSON_Delete(arr);
-    esp_err_t ret = send_json(req, 200, json ? json : "[]");
+    char *json = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    esp_err_t ret = send_json(req, 200, json ? json : "{\"ok\":true,\"aps\":[]}");
     free(json);
     return ret;
 }
@@ -359,6 +420,10 @@ static esp_err_t handle_otto_action(httpd_req_t *req)
     else {
         cJSON_Delete(root);
         return send_json(req, 200, "{\"ok\":false,\"msg\":\"unknown action\"}");
+    }
+
+    if (strcmp(action, "home") != 0) {
+        otto_home(&g_otto, true);
     }
 
     cJSON_Delete(root);
@@ -572,19 +637,24 @@ static const char SETUP_HTML[] =
 "async function loadStatus(){"
 "const d=await api('/api/status');"
 "if(!d)return;"
-"document.getElementById('wifi-ssid').value=d.wifi_ssid||'';"
+"const wifi=d.wifi||{};"
+"const llm=d.llm||{};"
+"const dingtalk=d.dingtalk||{};"
+"const proxy=d.proxy||{};"
+"const search=d.search||{};"
+"document.getElementById('wifi-ssid').value=wifi.ssid||'';"
 "document.getElementById('llm-key').value='';"
-"document.getElementById('llm-model').value=d.llm_model||'';"
-"document.getElementById('llm-url').value=d.llm_base_url||'';"
+"document.getElementById('llm-model').value=llm.model||'';"
+"document.getElementById('llm-url').value=llm.base_url||'';"
 "const sel=document.getElementById('llm-provider');"
-"if(d.llm_provider){"
-"for(let o of sel.options)if(o.value===d.llm_provider){o.selected=true;break;}"
+"if(llm.provider){"
+"for(let o of sel.options)if(o.value===llm.provider){o.selected=true;break;}"
 "}"
-"document.getElementById('dt-key').value=d.dt_app_key||'';"
+"document.getElementById('dt-key').value=dingtalk.app_key||'';"
 "document.getElementById('dt-secret').value='';"
-"document.getElementById('proxy-host').value=d.proxy_host||'';"
-"document.getElementById('proxy-port').value=d.proxy_port||'';"
-"document.getElementById('search-key').value=d.search_key||'';"
+"document.getElementById('proxy-host').value=proxy.host||'';"
+"document.getElementById('proxy-port').value=proxy.port||'';"
+"document.getElementById('search-key').value=search.key||'';"
 "}"
 
 "async function scanWifi(){"
@@ -592,14 +662,17 @@ static const char SETUP_HTML[] =
 "const d=await api('/api/wifi/scan');"
 "const list=document.getElementById('ap-list');"
 "list.innerHTML='';"
-"if(!d||!d.length){list.innerHTML='<div style=\"color:#888;font-size:.8em;padding:8px\">未找到WiFi</div>';return;}"
-"d.sort((a,b)=>b.rssi-a.rssi).forEach(ap=>{"
+"const aps=Array.isArray(d&&d.aps)?d.aps:[];"
+"if(!d||!d.ok){list.innerHTML='<div style=\"color:#888;font-size:.8em;padding:8px\">扫描失败</div>';setStatus('wifi-status',false,d&&d.msg?d.msg:'扫描失败');return;}"
+"if(!aps.length){list.innerHTML='<div style=\"color:#888;font-size:.8em;padding:8px\">未找到WiFi</div>';return;}"
+"aps.sort((a,b)=>b.rssi-a.rssi).forEach(ap=>{"
 "const div=document.createElement('div');"
 "div.className='ap-item';"
 "div.innerHTML='<span>'+ap.ssid+'</span><span class=\"ap-rssi\">'+ap.rssi+'dBm'+(ap.auth>0?' 🔒':'')+'</span>';"
 "div.onclick=()=>{document.getElementById('wifi-ssid').value=ap.ssid;document.getElementById('wifi-pass').focus();};"
 "list.appendChild(div);"
 "});"
+"setStatus('wifi-status',true,'已扫描到 '+aps.length+' 个网络');"
 "}"
 
 "async function saveWifi(){"
@@ -709,16 +782,34 @@ static esp_err_t start_ap(void)
     /* Build SSID from MAC */
     uint8_t mac[6];
     esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP);
-    char ap_ssid[32];
-    snprintf(ap_ssid, sizeof(ap_ssid), "MiaomiaoClaw-%02X%02X", mac[4], mac[5]);
+    snprintf(s_ap_ssid, sizeof(s_ap_ssid), "MiaomiaoClaw-%02X%02X", mac[4], mac[5]);
 
-    ESP_LOGI(TAG, "Starting AP: %s", ap_ssid);
+    ESP_LOGI(TAG, "Starting AP: %s", s_ap_ssid);
 
-    /* Stop any running STA first */
-    esp_wifi_stop();
-    vTaskDelay(pdMS_TO_TICKS(300));
     if (!s_ap_netif) {
-        s_ap_netif = esp_netif_create_default_wifi_ap();
+        s_ap_netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
+        if (!s_ap_netif) {
+            s_ap_netif = esp_netif_create_default_wifi_ap();
+        }
+    }
+    if (!s_sta_netif) {
+        s_sta_netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+        if (!s_sta_netif) {
+            s_sta_netif = esp_netif_create_default_wifi_sta();
+        }
+    }
+
+    wifi_mode_t mode = WIFI_MODE_NULL;
+    esp_err_t err = esp_wifi_get_mode(&mode);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "esp_wifi_get_mode failed: %s", esp_err_to_name(err));
+    }
+    if (mode != WIFI_MODE_NULL) {
+        err = esp_wifi_stop();
+        if (err != ESP_OK && err != ESP_ERR_WIFI_NOT_INIT && err != ESP_ERR_WIFI_NOT_STARTED) {
+            ESP_LOGW(TAG, "esp_wifi_stop failed: %s", esp_err_to_name(err));
+        }
+        vTaskDelay(pdMS_TO_TICKS(300));
     }
 
     wifi_config_t ap_cfg = {
@@ -729,10 +820,14 @@ static esp_err_t start_ap(void)
             .max_connection = 4,
         },
     };
-    strncpy((char *)ap_cfg.ap.ssid, ap_ssid, sizeof(ap_cfg.ap.ssid) - 1);
+    wifi_config_t sta_cfg = {0};
+    strncpy((char *)ap_cfg.ap.ssid, s_ap_ssid, sizeof(ap_cfg.ap.ssid) - 1);
+    sta_cfg.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
+    sta_cfg.sta.sort_method = WIFI_CONNECT_AP_BY_SIGNAL;
 
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_cfg));
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &sta_cfg));
     ESP_ERROR_CHECK(esp_wifi_start());
 
     ESP_LOGI(TAG, "AP started. IP: 192.168.4.1");
@@ -753,7 +848,11 @@ static void portal_task(void *arg)
 
     /* Show setup instructions on LCD */
     lcd_set_state(LCD_STATE_CONFIG);
-    lcd_show_qr_overlay("http://192.168.4.1", "连接热点后访问 http://192.168.4.1");
+    char portal_hint[128];
+    snprintf(portal_hint, sizeof(portal_hint),
+             "热点: %s\n访问 http://192.168.4.1 进入web配置面板",
+             s_ap_ssid[0] ? s_ap_ssid : "MiaomiaoClaw");
+    lcd_show_qr_overlay("http://192.168.4.1", portal_hint);
 
     /* Start HTTP */
     if (start_http_server() != ESP_OK) {

@@ -39,6 +39,9 @@ typedef enum {
 esp_err_t lcd_display_init(void);
 void lcd_backlight_set(bool on);
 void lcd_set_state(lcd_state_t state);
+void lcd_set_base_mood(lcd_state_t state);
+lcd_state_t lcd_get_base_mood(void);
+void lcd_restore_base_mood(void);
 void lcd_show_chat_message(const char *role, const char *content);
 void lcd_clear_chat(void);
 void lcd_set_status_text(const char *text);

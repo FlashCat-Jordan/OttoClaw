@@ -129,6 +129,7 @@ static lv_obj_t *qr_overlay   = NULL;  // 全屏遮罩
 
 // ── 状态 ──
 static lcd_state_t current_state = LCD_STATE_SLEEPING;
+static lcd_state_t base_mood = LCD_STATE_SLEEPING;
 static const lv_font_t *font_cn  = NULL;
 static const lv_font_t *font_sm  = NULL;
 
@@ -1196,21 +1197,50 @@ static void update_state_display(lcd_state_t state)
     }
 }
 
-// ═══════════════════════════════════════════════════════════
-//  随机情绪触发
-// ═══════════════════════════════════════════════════════════
+static bool is_transient_state(lcd_state_t state)
+{
+    return state == LCD_STATE_CONNECTING ||
+           state == LCD_STATE_CONNECTED ||
+           state == LCD_STATE_ERROR ||
+           state == LCD_STATE_THINKING ||
+           state == LCD_STATE_SPEAKING ||
+           state == LCD_STATE_LISTENING ||
+           state == LCD_STATE_CONFIG;
+}
+
+static bool is_valid_base_mood(lcd_state_t state)
+{
+    return state > LCD_STATE_LISTENING &&
+           state < LCD_STATE_CONFIG;
+}
+
+static void apply_state_locked(lcd_state_t state)
+{
+    current_state = state;
+    update_state_display(state);
+}
+
 static const lcd_state_t mood_pool[] = {
-    LCD_STATE_HAPPY, LCD_STATE_DAYDREAM, LCD_STATE_IN_LOVE,
-    LCD_STATE_EATING, LCD_STATE_BORED, LCD_STATE_SHY,
-    LCD_STATE_EXCITED, LCD_STATE_WATCHING_TV, LCD_STATE_DIZZY,
+    LCD_STATE_SLEEPING,
+    LCD_STATE_HAPPY,
+    LCD_STATE_DAYDREAM,
+    LCD_STATE_IN_LOVE,
+    LCD_STATE_EATING,
+    LCD_STATE_STUDYING,
+    LCD_STATE_WATCHING_TV,
+    LCD_STATE_ANGRY,
+    LCD_STATE_SURPRISED,
+    LCD_STATE_BORED,
+    LCD_STATE_DIZZY,
+    LCD_STATE_SHY,
+    LCD_STATE_EXCITED,
 };
 #define MOOD_POOL_SIZE (int)(sizeof(mood_pool)/sizeof(mood_pool[0]))
 
 static void mood_timer_cb(lv_timer_t *t)
 {
     (void)t;
-    if (current_state != LCD_STATE_CONNECTED &&
-        current_state != LCD_STATE_SLEEPING) return;
+    if (is_transient_state(current_state)) return;
 
     mood_ticks++;
     if (mood_ticks < 30) return;
@@ -1219,17 +1249,11 @@ static void mood_timer_cb(lv_timer_t *t)
     uint32_t r = (uint32_t)(esp_timer_get_time() & 0xFFFF);
     if ((r % 10) >= 3) return;
 
-    lcd_state_t prev  = current_state;
-    lcd_state_t mood  = mood_pool[r % MOOD_POOL_SIZE];
+    lcd_state_t mood = mood_pool[r % MOOD_POOL_SIZE];
 
     if (lvgl_port_lock(0)) {
-        update_state_display(mood);
-        lvgl_port_unlock();
-    }
-    vTaskDelay(pdMS_TO_TICKS(4000));
-    if (lvgl_port_lock(0)) {
-        current_state = prev;
-        update_state_display(prev);
+        base_mood = mood;
+        apply_state_locked(base_mood);
         lvgl_port_unlock();
     }
 }
@@ -1322,6 +1346,20 @@ void lcd_stream_end(void)
 void lcd_show_qr_overlay(const char *url, const char *hint)
 {
     (void)url;
+    const char *ssid = "MiaomiaoClaw";
+    char hint_copy[192] = {0};
+    if (hint && hint[0]) {
+        snprintf(hint_copy, sizeof(hint_copy), "%s", hint);
+        const char *prefix = "热点: ";
+        char *ssid_start = strstr(hint_copy, prefix);
+        if (ssid_start) {
+            ssid_start += strlen(prefix);
+            char *ssid_end = strchr(ssid_start, '\n');
+            if (ssid_end) *ssid_end = '\0';
+            if (ssid_start[0]) ssid = ssid_start;
+        }
+    }
+
     if (!lvgl_port_lock(500)) return;
 
     if (qr_overlay) {
@@ -1349,11 +1387,12 @@ void lcd_show_qr_overlay(const char *url, const char *hint)
     lv_obj_set_style_text_font(steps, font_cn, 0);
     lv_obj_set_style_text_color(steps, lv_color_hex(0xE8F0FF), 0);
     lv_label_set_long_mode(steps, LV_LABEL_LONG_WRAP);
-    lv_label_set_text(steps,
-        "1. 连接设备热点\n"
+    lv_label_set_text_fmt(steps,
+        "1. 连接设备热点 %s\n"
         "2. 打开手机浏览器\n"
-        "3. 访问\n"
-        "   http://192.168.4.1");
+        "3. 访问 http://192.168.4.1\n"
+        "   进入web配置面板",
+        ssid);
     lv_obj_align(steps, LV_ALIGN_CENTER, 0, -8);
 
     lv_obj_t *hint_lbl = lv_label_create(qr_overlay);
@@ -1361,7 +1400,7 @@ void lcd_show_qr_overlay(const char *url, const char *hint)
     lv_obj_set_style_text_font(hint_lbl, font_cn, 0);
     lv_obj_set_style_text_color(hint_lbl, lv_color_hex(0xA0C0FF), 0);
     lv_label_set_long_mode(hint_lbl, LV_LABEL_LONG_WRAP);
-    lv_label_set_text(hint_lbl, hint ? hint : "连接热点后访问 http://192.168.4.1");
+    lv_label_set_text(hint_lbl, hint ? hint : "热点: MiaomiaoClaw\n访问 http://192.168.4.1 进入web配置面板");
     lv_obj_align(hint_lbl, LV_ALIGN_BOTTOM_MID, 0, -16);
 
     lvgl_port_unlock();
@@ -1555,6 +1594,8 @@ esp_err_t lcd_display_init(void)
     if (lvgl_port_lock(0)) {
         setup_ui();
         update_state_display(LCD_STATE_SLEEPING);
+        current_state = LCD_STATE_SLEEPING;
+        base_mood = LCD_STATE_SLEEPING;
         lvgl_port_unlock();
     }
 
@@ -1568,11 +1609,32 @@ esp_err_t lcd_display_init(void)
 
 void lcd_set_state(lcd_state_t state)
 {
-    current_state = state;
-    if (lvgl_port_lock(500)) {
-        update_state_display(state);
-        lvgl_port_unlock();
+    if (!lvgl_port_lock(500)) return;
+    apply_state_locked(state);
+    lvgl_port_unlock();
+}
+
+void lcd_set_base_mood(lcd_state_t state)
+{
+    if (!is_valid_base_mood(state)) return;
+    if (!lvgl_port_lock(500)) return;
+    base_mood = state;
+    if (!is_transient_state(current_state)) {
+        apply_state_locked(base_mood);
     }
+    lvgl_port_unlock();
+}
+
+lcd_state_t lcd_get_base_mood(void)
+{
+    return base_mood;
+}
+
+void lcd_restore_base_mood(void)
+{
+    if (!lvgl_port_lock(500)) return;
+    apply_state_locked(base_mood);
+    lvgl_port_unlock();
 }
 
 void lcd_show_chat_message(const char *role, const char *content)

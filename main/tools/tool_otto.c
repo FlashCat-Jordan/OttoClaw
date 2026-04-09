@@ -8,6 +8,11 @@ static const char *TAG = "tool_otto";
 
 extern otto_t g_otto;
 
+static bool should_auto_home_action(const char *action_name)
+{
+    return action_name && strcmp(action_name, "home") != 0;
+}
+
 static esp_err_t tool_otto_action_execute(const char *input_json, char *output, size_t output_size) {
     cJSON *input = cJSON_Parse(input_json);
     if (!input) {
@@ -129,6 +134,10 @@ static esp_err_t tool_otto_action_execute(const char *input_json, char *output, 
         snprintf(output, output_size, "未知动作: %s", action_name);
         cJSON_Delete(input);
         return ESP_FAIL;
+    }
+
+    if (should_auto_home_action(action_name)) {
+        otto_home(&g_otto, true);
     }
 
     cJSON_Delete(input);
