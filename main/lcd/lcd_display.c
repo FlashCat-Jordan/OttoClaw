@@ -37,6 +37,7 @@ static const char *TAG = "lcd";
 #define PIN_BL          3
 #define LCD_H_RES       240
 #define LCD_V_RES       240
+#define QR_CANVAS_PX    152   /* QR码画布边长（像素） */
 
 // ═══════════════════════════════════════════════════════════
 //  颜色定义
@@ -1349,15 +1350,14 @@ void lcd_show_qr_overlay(const char *url, const char *hint)
     lv_label_set_text(title, "扫码进入配置");
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
 
-    // QR 码占位框（实际像素由 lcd_draw_qr_matrix 填充）
-    qr_canvas = lv_obj_create(qr_overlay);
-    lv_obj_set_size(qr_canvas, 160, 160);
+    // QR 码画布（lv_canvas，直接像素绘制，避免创建大量子对象）
+    // 画布尺寸 152×152，像素格式 RGB565
+    static lv_color_t qr_cbuf[QR_CANVAS_PX * QR_CANVAS_PX];
+    qr_canvas = lv_canvas_create(qr_overlay);
+    lv_canvas_set_buffer(qr_canvas, qr_cbuf, QR_CANVAS_PX, QR_CANVAS_PX, LV_COLOR_FORMAT_RGB565);
+    lv_obj_set_size(qr_canvas, QR_CANVAS_PX, QR_CANVAS_PX);
     lv_obj_align(qr_canvas, LV_ALIGN_CENTER, 0, -10);
-    lv_obj_set_style_bg_color(qr_canvas, lv_color_hex(0xFFFFFF), 0);
-    lv_obj_set_style_bg_opa(qr_canvas, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(qr_canvas, 0, 0);
-    lv_obj_set_style_pad_all(qr_canvas, 6, 0);
-    lv_obj_clear_flag(qr_canvas, LV_OBJ_FLAG_SCROLLABLE);
+    lv_canvas_fill_bg(qr_canvas, lv_color_hex(0xFFFFFF), LV_OPA_COVER);
 
     // 提示文字（WiFi SSID）
     lv_obj_t *hint_lbl = lv_label_create(qr_overlay);
@@ -1369,33 +1369,40 @@ void lcd_show_qr_overlay(const char *url, const char *hint)
     lvgl_port_unlock();
 }
 
-// 在 qr_canvas 内绘制 QR 矩阵（modules 为 size×size bit数组，1=黑，0=白）
+// 在 qr_canvas（lv_canvas）内绘制 QR 矩阵
 void lcd_draw_qr_matrix(const uint8_t *modules, int size)
 {
     if (!qr_canvas || !modules) return;
     if (!lvgl_port_lock(500)) return;
 
-    // 每个 module 的像素大小
-    int mod_px = 148 / size;
+    // 每个 module 的像素大小（画布 152px，留 4px 白边）
+    int canvas_px = QR_CANVAS_PX - 8;  /* 144 可用 */
+    int mod_px = canvas_px / size;
     if (mod_px < 1) mod_px = 1;
 
-    // 删除旧的 module 方块
-    lv_obj_clean(qr_canvas);
+    // 先填白底
+    lv_canvas_fill_bg(qr_canvas, lv_color_hex(0xFFFFFF), LV_OPA_COVER);
+
+    int offset = (QR_CANVAS_PX - mod_px * size) / 2;  /* 居中 */
+
+    lv_draw_rect_dsc_t dsc;
+    lv_draw_rect_dsc_init(&dsc);
+    dsc.radius   = 0;
+    dsc.border_width = 0;
 
     for (int y = 0; y < size; y++) {
         for (int x = 0; x < size; x++) {
-            bool is_dark = (modules[y * size + x] != 0);
-            lv_obj_t *dot = lv_obj_create(qr_canvas);
-            lv_obj_set_size(dot, mod_px, mod_px);
-            lv_obj_set_pos(dot, x * mod_px, y * mod_px);
-            lv_obj_set_style_bg_color(dot, is_dark ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF), 0);
-            lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
-            lv_obj_set_style_border_width(dot, 0, 0);
-            lv_obj_set_style_pad_all(dot, 0, 0);
-            lv_obj_set_style_radius(dot, 0, 0);
-            lv_obj_clear_flag(dot, LV_OBJ_FLAG_SCROLLABLE);
+            bool dark = modules[y * size + x] != 0;
+            lv_color_t c = dark ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
+            /* Fill mod_px × mod_px pixels for this module */
+            int px0 = offset + x * mod_px;
+            int py0 = offset + y * mod_px;
+            for (int dy = 0; dy < mod_px; dy++)
+                for (int dx = 0; dx < mod_px; dx++)
+                    lv_canvas_set_px(qr_canvas, px0 + dx, py0 + dy, c, LV_OPA_COVER);
         }
     }
+
     lvgl_port_unlock();
 }
 

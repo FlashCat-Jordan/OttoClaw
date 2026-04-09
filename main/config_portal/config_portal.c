@@ -715,7 +715,9 @@ static esp_err_t start_ap(void)
 
     ESP_LOGI(TAG, "Starting AP: %s", ap_ssid);
 
-    /* Create AP netif if not already done */
+    /* Stop any running STA first */
+    esp_wifi_stop();
+    vTaskDelay(pdMS_TO_TICKS(300));
     if (!s_ap_netif) {
         s_ap_netif = esp_netif_create_default_wifi_ap();
     }
