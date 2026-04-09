@@ -1,6 +1,6 @@
 #pragma once
 
-/* MimiClaw Global Configuration */
+/* MiaomiaoClaw Global Configuration */
 
 /* Build-time secrets (highest priority, override NVS) */
 #if __has_include("mimi_secrets.h")

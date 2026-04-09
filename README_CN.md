@@ -1,4 +1,4 @@
-# MimiClaw: $5 芯片上的口袋 AI 助理
+# MiaomiaoClaw: $5 芯片上的口袋 AI 助理
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![DeepWiki](https://img.shields.io/badge/DeepWiki-mimiclaw-blue.svg)](https://deepwiki.com/memovai/mimiclaw)
@@ -8,14 +8,14 @@
 **[English](README.md) | [中文](README_CN.md)**
 
 <p align="center">
-  <img src="assets/banner.png" alt="MimiClaw" width="480" />
+  <img src="assets/banner.png" alt="MiaomiaoClaw" width="480" />
 </p>
 
 **$5 芯片上的 AI 助理（OpenClaw）。没有 Linux，没有 Node.js，纯 C。**
 
-MimiClaw 把一块小小的 ESP32-S3 开发板变成你的私人 AI 助理。插上 USB 供电，连上 WiFi，通过 Telegram 跟它对话 — 它能处理你丢给它的任何任务，还会随时间积累本地记忆不断进化 — 全部跑在一颗拇指大小的芯片上。
+MiaomiaoClaw 把一块小小的 ESP32-S3 开发板变成你的私人 AI 助理。插上 USB 供电，连上 WiFi，通过 Telegram 跟它对话 — 它能处理你丢给它的任何任务，还会随时间积累本地记忆不断进化 — 全部跑在一颗拇指大小的芯片上。
 
-## 认识 MimiClaw
+## 认识 MiaomiaoClaw
 
 - **小巧** — 没有 Linux，没有 Node.js，没有臃肿依赖 — 纯 C
 - **好用** — 在 Telegram 发消息，剩下的它来搞定
@@ -52,7 +52,7 @@ idf.py set-target esp32s3
 
 ### 配置
 
-MimiClaw 使用**两层配置**：`mimi_secrets.h` 提供编译时默认值，串口 CLI 可在运行时覆盖。CLI 设置的值存在 NVS Flash 中，优先级高于编译时值。
+MiaomiaoClaw 使用**两层配置**：`mimi_secrets.h` 提供编译时默认值，串口 CLI 可在运行时覆盖。CLI 设置的值存在 NVS Flash 中，优先级高于编译时值。
 
 ```bash
 cp main/mimi_secrets.h.example main/mimi_secrets.h
@@ -96,7 +96,7 @@ idf.py -p PORT flash monitor
 
 ### 代理配置（国内用户）
 
-在国内需要代理才能访问 Telegram 和 Anthropic API。MimiClaw 内置 HTTP CONNECT 隧道支持。
+在国内需要代理才能访问 Telegram 和 Anthropic API。MiaomiaoClaw 内置 HTTP CONNECT 隧道支持。
 
 **前提**：局域网内有一个支持 HTTP CONNECT 的代理（Clash Verge、V2Ray 等），并开启了「允许局域网连接」。
 
@@ -141,7 +141,7 @@ mimi> restart                  # 重启
 
 ## 记忆
 
-MimiClaw 把所有数据存为纯文本文件，可以直接读取和编辑：
+MiaomiaoClaw 把所有数据存为纯文本文件，可以直接读取和编辑：
 
 | 文件 | 说明 |
 |------|------|
@@ -153,7 +153,7 @@ MimiClaw 把所有数据存为纯文本文件，可以直接读取和编辑：
 
 ## 工具
 
-MimiClaw 使用 Anthropic 的 tool use 协议 — Claude 在对话中可以调用工具，循环执行直到任务完成（ReAct 模式）。
+MiaomiaoClaw 使用 Anthropic 的 tool use 协议 — Claude 在对话中可以调用工具，循环执行直到任务完成（ReAct 模式）。
 
 | 工具 | 说明 |
 |------|------|
@@ -183,7 +183,7 @@ MIT
 
 ## 致谢
 
-灵感来自 [OpenClaw](https://github.com/openclaw/openclaw) 和 [Nanobot](https://github.com/HKUDS/nanobot)。MimiClaw 为嵌入式硬件重新实现了核心 AI Agent 架构 — 没有 Linux，没有服务器，只有一颗 $5 的芯片。
+灵感来自 [OpenClaw](https://github.com/openclaw/openclaw) 和 [Nanobot](https://github.com/HKUDS/nanobot)。MiaomiaoClaw 为嵌入式硬件重新实现了核心 AI Agent 架构 — 没有 Linux，没有服务器，只有一颗 $5 的芯片。
 
 ## Star History
 

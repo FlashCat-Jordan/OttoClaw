@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MimiClaw Chat</title>
+    <title>MiaomiaoClaw Chat</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -137,13 +137,13 @@
 </head>
 <body>
     <div class="header">
-        <h1>MimiClaw</h1>
+        <h1>MiaomiaoClaw</h1>
         <div class="status disconnected" id="status">Connecting...</div>
         <a href="/settings.html" style="position: absolute; top: 15px; right: 20px; color: #e94560; text-decoration: none; font-size: 20px;">⚙️</a>
     </div>
     
     <div class="messages" id="messages">
-        <div class="message system">Welcome to MimiClaw Chat</div>
+        <div class="message system">Welcome to MiaomiaoClaw Chat</div>
     </div>
     
     <div class="typing" id="typing">
@@ -168,7 +168,7 @@
                 document.getElementById('status').textContent = 'Connected';
                 document.getElementById('status').className = 'status connected';
                 document.getElementById('send').disabled = false;
-                addMessage('system', 'Connected to MimiClaw');
+                addMessage('system', 'Connected to MiaomiaoClaw');
             };
             
             ws.onclose = function() {

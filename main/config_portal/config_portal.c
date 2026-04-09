@@ -1,10 +1,10 @@
 /*
- * MimiClaw Configuration Portal
+ * MiaomiaoClaw Configuration Portal
  *
  * Starts an AP + HTTP server for web-based device configuration.
  * Serves setup.html and provides JSON REST APIs for all settings.
  *
- * AP SSID: "MimiClaw-XXXX" (last 4 hex of MAC, no password)
+ * AP SSID: "MiaomiaoClaw-XXXX" (last 4 hex of MAC, no password)
  * HTTP port: 80
  * AP IP: 192.168.4.1
  */
@@ -12,7 +12,6 @@
 #include "config_portal.h"
 #include "mimi_config.h"
 #include "lcd/lcd_display.h"
-#include "qrcode/qrcode.h"
 #include "otto/otto_movements.h"
 
 #include <string.h>
@@ -410,7 +409,7 @@ static esp_err_t handle_root(httpd_req_t *req)
 static const char SETUP_HTML[] =
 "<!DOCTYPE html><html lang='zh'><head><meta charset='UTF-8'>"
 "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-"<title>MimiClaw 配置</title>"
+"<title>MiaomiaoClaw 配置</title>"
 "<style>"
 "*{box-sizing:border-box;margin:0;padding:0}"
 "body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"
@@ -451,7 +450,7 @@ static const char SETUP_HTML[] =
 ".otto-btn:hover{border-color:#7eff7e;color:#7eff7e;background:#0a1a0a}"
 ".section-title{color:#7eb8ff;font-size:.85em;font-weight:600;margin-top:16px;margin-bottom:4px;border-bottom:1px solid #222;padding-bottom:4px}"
 "</style></head><body>"
-"<h1>🤖 MimiClaw<span>初始配置 · 配置完成后点「保存并重启」</span></h1>"
+"<h1>🤖 MiaomiaoClaw<span>初始配置 · 配置完成后点「保存并重启」</span></h1>"
 "<div class='tabs'>"
 "<div class='tab active' onclick='showTab(\"wifi\")'>📡 WiFi</div>"
 "<div class='tab' onclick='showTab(\"llm\")'>🤖 大模型</div>"
@@ -711,7 +710,7 @@ static esp_err_t start_ap(void)
     uint8_t mac[6];
     esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP);
     char ap_ssid[32];
-    snprintf(ap_ssid, sizeof(ap_ssid), "MimiClaw-%02X%02X", mac[4], mac[5]);
+    snprintf(ap_ssid, sizeof(ap_ssid), "MiaomiaoClaw-%02X%02X", mac[4], mac[5]);
 
     ESP_LOGI(TAG, "Starting AP: %s", ap_ssid);
 
@@ -752,15 +751,9 @@ static void portal_task(void *arg)
         return;
     }
 
-    /* Show QR on LCD */
+    /* Show setup instructions on LCD */
     lcd_set_state(LCD_STATE_CONFIG);
-
-    static uint8_t qr_modules[QRCODE_MAX_MODULES * QRCODE_MAX_MODULES];
-    int qr_size = 0;
-    if (qrcode_encode_url("http://192.168.4.1", qr_modules, &qr_size) == 0) {
-        lcd_show_qr_overlay("http://192.168.4.1", "扫码进入配置");
-        lcd_draw_qr_matrix(qr_modules, qr_size);
-    }
+    lcd_show_qr_overlay("http://192.168.4.1", "连接热点后访问 http://192.168.4.1");
 
     /* Start HTTP */
     if (start_http_server() != ESP_OK) {

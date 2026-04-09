@@ -1,4 +1,4 @@
-# MimiClaw: Pocket AI Assistant on a $5 Chip
+# MiaomiaoClaw: Pocket AI Assistant on a $5 Chip
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![DeepWiki](https://img.shields.io/badge/DeepWiki-mimiclaw-blue.svg)](https://deepwiki.com/memovai/mimiclaw)
@@ -8,14 +8,14 @@
 **[English](README.md) | [中文](README_CN.md)**
 
 <p align="center">
-  <img src="assets/banner.png" alt="MimiClaw" width="480" />
+  <img src="assets/banner.png" alt="MiaomiaoClaw" width="480" />
 </p>
 
 **The world's first AI assistant(OpenClaw) on a $5 chip. No Linux. No Node.js. Just pure C**
 
-MimiClaw turns a tiny ESP32-S3 board into a personal AI assistant. Plug it into USB power, connect to WiFi, and talk to it through Telegram — it handles any task you throw at it and evolves over time with local memory — all on a chip the size of a thumb.
+MiaomiaoClaw turns a tiny ESP32-S3 board into a personal AI assistant. Plug it into USB power, connect to WiFi, and talk to it through Telegram — it handles any task you throw at it and evolves over time with local memory — all on a chip the size of a thumb.
 
-## Meet MimiClaw
+## Meet MiaomiaoClaw
 
 - **Tiny** — No Linux, no Node.js, no bloat — just pure C
 - **Handy** — Message it from Telegram, it handles the rest
@@ -52,7 +52,7 @@ idf.py set-target esp32s3
 
 ### Configure
 
-MimiClaw uses a **two-layer config** system: build-time defaults in `mimi_secrets.h`, with runtime overrides via the serial CLI. CLI values are stored in NVS flash and take priority over build-time values.
+MiaomiaoClaw uses a **two-layer config** system: build-time defaults in `mimi_secrets.h`, with runtime overrides via the serial CLI. CLI values are stored in NVS flash and take priority over build-time values.
 
 ```bash
 cp main/mimi_secrets.h.example main/mimi_secrets.h
@@ -126,7 +126,7 @@ mimi> restart                  # reboot
 
 ## Memory
 
-MimiClaw stores everything as plain text files you can read and edit:
+MiaomiaoClaw stores everything as plain text files you can read and edit:
 
 | File | What it is |
 |------|------------|
@@ -138,7 +138,7 @@ MimiClaw stores everything as plain text files you can read and edit:
 
 ## Tools
 
-MimiClaw uses Anthropic's tool use protocol — Claude can call tools during a conversation and loop until the task is done (ReAct pattern).
+MiaomiaoClaw uses Anthropic's tool use protocol — Claude can call tools during a conversation and loop until the task is done (ReAct pattern).
 
 | Tool | Description |
 |------|-------------|
@@ -168,7 +168,7 @@ MIT
 
 ## Acknowledgments
 
-Inspired by [OpenClaw](https://github.com/openclaw/openclaw) and [Nanobot](https://github.com/HKUDS/nanobot). MimiClaw reimplements the core AI agent architecture for embedded hardware — no Linux, no server, just a $5 chip.
+Inspired by [OpenClaw](https://github.com/openclaw/openclaw) and [Nanobot](https://github.com/HKUDS/nanobot). MiaomiaoClaw reimplements the core AI agent architecture for embedded hardware — no Linux, no server, just a $5 chip.
 
 ## Star History
 

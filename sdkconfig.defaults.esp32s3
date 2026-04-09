@@ -1,4 +1,4 @@
-# MimiClaw - ESP32-S3 Target Configuration
+# MiaomiaoClaw - ESP32-S3 Target Configuration
 CONFIG_IDF_TARGET="esp32s3"
 
 # Flash 16MB + QIO

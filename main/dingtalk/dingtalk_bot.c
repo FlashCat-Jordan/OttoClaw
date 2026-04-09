@@ -317,7 +317,7 @@ static esp_err_t dingtalk_get_stream_credential(dingtalk_stream_credential_t *cr
     cJSON_AddItemToArray(subs, sub2);
     
     cJSON_AddItemToObject(body, "subscriptions", subs);
-    cJSON_AddStringToObject(body, "ua", "mimiclaw-esp32/1.0");
+    cJSON_AddStringToObject(body, "ua", "miaomiaoclaw-esp32/1.0");
     
     char *json_str = cJSON_PrintUnformatted(body);
     cJSON_Delete(body);
@@ -351,7 +351,7 @@ static esp_err_t dingtalk_get_stream_credential(dingtalk_stream_credential_t *cr
     
     esp_http_client_set_header(client, "Content-Type", "application/json");
     esp_http_client_set_header(client, "Accept", "application/json");
-    esp_http_client_set_header(client, "User-Agent", "mimiclaw-esp32/1.0");
+    esp_http_client_set_header(client, "User-Agent", "miaomiaoclaw-esp32/1.0");
     
     ESP_LOGI(TAG, "Sending HTTP POST to: %s", url);
     ESP_LOGI(TAG, "Request body length: %d", strlen(json_str));

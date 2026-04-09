@@ -10,9 +10,9 @@ extern "C" {
 /**
  * @brief Start the configuration portal in AP mode.
  *
- * - Starts a WiFi Access Point (open, SSID = "MimiClaw-XXXX")
+ * - Starts a WiFi Access Point (open, SSID = "MiaomiaoClaw-XXXX")
  * - Starts an HTTP server on port 80 serving setup.html and JSON APIs
- * - Shows QR code on LCD screen pointing to http://192.168.4.1
+ * - Shows on-screen setup instructions for http://192.168.4.1
  * - Blocks in a FreeRTOS task until config_portal_stop() is called
  *   or /api/setup/complete is posted.
  *

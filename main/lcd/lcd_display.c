@@ -1,5 +1,5 @@
 /*
- * lcd_display.c — MimiClaw 像素风机甲座舱 UI
+ * lcd_display.c — MiaomiaoClaw 像素风机甲座舱 UI
  * 全新设计：小人坐在机甲座舱中，22种状态表情，流式逐字显示
  */
 #include "lcd_display.h"
@@ -37,7 +37,6 @@ static const char *TAG = "lcd";
 #define PIN_BL          3
 #define LCD_H_RES       240
 #define LCD_V_RES       240
-#define QR_CANVAS_PX    152   /* QR码画布边长（像素） */
 
 // ═══════════════════════════════════════════════════════════
 //  颜色定义
@@ -125,9 +124,8 @@ static lv_obj_t *stream_label = NULL;  // 当前流式消息label
 static lv_obj_t *wifi_icon    = NULL;
 static lv_obj_t *status_label = NULL;
 
-// ── QR 覆盖层 ──
+// ── 配网提示覆盖层 ──
 static lv_obj_t *qr_overlay   = NULL;  // 全屏遮罩
-static lv_obj_t *qr_canvas    = NULL;  // QR码画布
 
 // ── 状态 ──
 static lcd_state_t current_state = LCD_STATE_SLEEPING;
@@ -1323,17 +1321,14 @@ void lcd_stream_end(void)
 
 void lcd_show_qr_overlay(const char *url, const char *hint)
 {
-    (void)url;  // URL 由上层已生成好矩阵
+    (void)url;
     if (!lvgl_port_lock(500)) return;
 
-    // 如果已有覆盖层，先删除
     if (qr_overlay) {
         lv_obj_delete(qr_overlay);
         qr_overlay = NULL;
-        qr_canvas  = NULL;
     }
 
-    // 创建半透明覆盖层
     qr_overlay = lv_obj_create(screen);
     lv_obj_set_size(qr_overlay, LCD_H_RES, LCD_V_RES);
     lv_obj_align(qr_overlay, LV_ALIGN_CENTER, 0, 0);
@@ -1343,65 +1338,31 @@ void lcd_show_qr_overlay(const char *url, const char *hint)
     lv_obj_set_style_pad_all(qr_overlay, 0, 0);
     lv_obj_clear_flag(qr_overlay, LV_OBJ_FLAG_SCROLLABLE);
 
-    // 标题
     lv_obj_t *title = lv_label_create(qr_overlay);
     lv_obj_set_style_text_font(title, font_cn, 0);
     lv_obj_set_style_text_color(title, C_CYAN, 0);
-    lv_label_set_text(title, "扫码进入配置");
-    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
+    lv_label_set_text(title, "进入配网模式");
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 18);
 
-    // QR 码画布（lv_canvas，直接像素绘制，避免创建大量子对象）
-    // 画布尺寸 152×152，像素格式 RGB565
-    static lv_color_t qr_cbuf[QR_CANVAS_PX * QR_CANVAS_PX];
-    qr_canvas = lv_canvas_create(qr_overlay);
-    lv_canvas_set_buffer(qr_canvas, qr_cbuf, QR_CANVAS_PX, QR_CANVAS_PX, LV_COLOR_FORMAT_RGB565);
-    lv_obj_set_size(qr_canvas, QR_CANVAS_PX, QR_CANVAS_PX);
-    lv_obj_align(qr_canvas, LV_ALIGN_CENTER, 0, -10);
-    lv_canvas_fill_bg(qr_canvas, lv_color_hex(0xFFFFFF), LV_OPA_COVER);
+    lv_obj_t *steps = lv_label_create(qr_overlay);
+    lv_obj_set_width(steps, LCD_H_RES - 36);
+    lv_obj_set_style_text_font(steps, font_cn, 0);
+    lv_obj_set_style_text_color(steps, lv_color_hex(0xE8F0FF), 0);
+    lv_label_set_long_mode(steps, LV_LABEL_LONG_WRAP);
+    lv_label_set_text(steps,
+        "1. 连接设备热点\n"
+        "2. 打开手机浏览器\n"
+        "3. 访问\n"
+        "   http://192.168.4.1");
+    lv_obj_align(steps, LV_ALIGN_CENTER, 0, -8);
 
-    // 提示文字（WiFi SSID）
     lv_obj_t *hint_lbl = lv_label_create(qr_overlay);
+    lv_obj_set_width(hint_lbl, LCD_H_RES - 36);
     lv_obj_set_style_text_font(hint_lbl, font_cn, 0);
     lv_obj_set_style_text_color(hint_lbl, lv_color_hex(0xA0C0FF), 0);
-    lv_label_set_text(hint_lbl, hint ? hint : "http://192.168.4.1");
-    lv_obj_align(hint_lbl, LV_ALIGN_BOTTOM_MID, 0, -8);
-
-    lvgl_port_unlock();
-}
-
-// 在 qr_canvas（lv_canvas）内绘制 QR 矩阵
-void lcd_draw_qr_matrix(const uint8_t *modules, int size)
-{
-    if (!qr_canvas || !modules) return;
-    if (!lvgl_port_lock(500)) return;
-
-    // 每个 module 的像素大小（画布 152px，留 4px 白边）
-    int canvas_px = QR_CANVAS_PX - 8;  /* 144 可用 */
-    int mod_px = canvas_px / size;
-    if (mod_px < 1) mod_px = 1;
-
-    // 先填白底
-    lv_canvas_fill_bg(qr_canvas, lv_color_hex(0xFFFFFF), LV_OPA_COVER);
-
-    int offset = (QR_CANVAS_PX - mod_px * size) / 2;  /* 居中 */
-
-    lv_draw_rect_dsc_t dsc;
-    lv_draw_rect_dsc_init(&dsc);
-    dsc.radius   = 0;
-    dsc.border_width = 0;
-
-    for (int y = 0; y < size; y++) {
-        for (int x = 0; x < size; x++) {
-            bool dark = modules[y * size + x] != 0;
-            lv_color_t c = dark ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
-            /* Fill mod_px × mod_px pixels for this module */
-            int px0 = offset + x * mod_px;
-            int py0 = offset + y * mod_px;
-            for (int dy = 0; dy < mod_px; dy++)
-                for (int dx = 0; dx < mod_px; dx++)
-                    lv_canvas_set_px(qr_canvas, px0 + dx, py0 + dy, c, LV_OPA_COVER);
-        }
-    }
+    lv_label_set_long_mode(hint_lbl, LV_LABEL_LONG_WRAP);
+    lv_label_set_text(hint_lbl, hint ? hint : "连接热点后访问 http://192.168.4.1");
+    lv_obj_align(hint_lbl, LV_ALIGN_BOTTOM_MID, 0, -16);
 
     lvgl_port_unlock();
 }
@@ -1412,7 +1373,6 @@ void lcd_hide_qr_overlay(void)
     if (qr_overlay) {
         lv_obj_delete(qr_overlay);
         qr_overlay = NULL;
-        qr_canvas  = NULL;
     }
     lvgl_port_unlock();
 }

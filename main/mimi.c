@@ -120,19 +120,43 @@ static bool boot_button_long_press_detected(void)
 
 static void start_normal_services(void)
 {
-    ESP_ERROR_CHECK(dingtalk_bot_start());
-    ESP_ERROR_CHECK(agent_loop_start());
-    ESP_ERROR_CHECK(ws_server_start());
-    ESP_ERROR_CHECK(cron_service_start());
-    ESP_ERROR_CHECK(heartbeat_service_start());
+    esp_err_t err;
+
+    err = dingtalk_bot_start();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "dingtalk_bot_start failed: %s", esp_err_to_name(err));
+    }
+
+    err = agent_loop_start();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "agent_loop_start failed: %s", esp_err_to_name(err));
+    }
+
+    err = ws_server_start();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "ws_server_start failed: %s", esp_err_to_name(err));
+    }
+
+    err = cron_service_start();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "cron_service_start failed: %s", esp_err_to_name(err));
+    }
+
+    err = heartbeat_service_start();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "heartbeat_service_start failed: %s", esp_err_to_name(err));
+    }
 
     /* Outbound dispatch task */
-    xTaskCreatePinnedToCore(
+    BaseType_t ret = xTaskCreatePinnedToCore(
         outbound_dispatch_task, "outbound",
         MIMI_OUTBOUND_STACK, NULL,
         MIMI_OUTBOUND_PRIO, NULL, MIMI_OUTBOUND_CORE);
+    if (ret != pdPASS) {
+        ESP_LOGE(TAG, "outbound_dispatch_task start failed");
+    }
 
-    ESP_LOGI(TAG, "All services started!");
+    ESP_LOGI(TAG, "Service startup attempted");
 }
 
 void app_main(void)
@@ -141,7 +165,7 @@ void app_main(void)
     esp_log_level_set("esp-x509-crt-bundle", ESP_LOG_WARN);
 
     ESP_LOGI(TAG, "========================================");
-    ESP_LOGI(TAG, "  MimiClaw - ESP32-S3 AI Agent");
+    ESP_LOGI(TAG, "  MiaomiaoClaw - ESP32-S3 AI Agent");
     ESP_LOGI(TAG, "========================================");
 
     /* Print memory info */
@@ -254,7 +278,7 @@ void app_main(void)
         lcd_set_status_text("无WiFi配置");
     }
 
-    ESP_LOGI(TAG, "MimiClaw ready. Type 'help' for CLI commands.");
+    ESP_LOGI(TAG, "MiaomiaoClaw ready. Type 'help' for CLI commands.");
 
     /* Main loop: poll for BOOT long-press to enter config mode */
     while (1) {
