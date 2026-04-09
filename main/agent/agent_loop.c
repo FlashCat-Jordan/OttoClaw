@@ -171,7 +171,28 @@ static void agent_loop_task(void *arg)
             session_append(msg.chat_id, "assistant", final_text);
 
             lcd_set_state(LCD_STATE_SPEAKING);
-            lcd_show_chat_message("assistant", final_text);
+
+            /* Typewriter effect: stream character by character */
+            lcd_stream_begin(true);  /* true = assistant side */
+            const char *p = final_text;
+            while (*p) {
+                /* Determine UTF-8 char byte length */
+                int char_len = 1;
+                unsigned char c = (unsigned char)*p;
+                if      (c >= 0xF0) char_len = 4;
+                else if (c >= 0xE0) char_len = 3;
+                else if (c >= 0xC0) char_len = 2;
+
+                /* Feed one character (as chunk) */
+                char chunk[5] = {0};
+                for (int i = 0; i < char_len && p[i]; i++) chunk[i] = p[i];
+                lcd_stream_append(chunk);
+                p += char_len;
+
+                /* 40ms per Chinese char, 20ms per ASCII */
+                vTaskDelay(pdMS_TO_TICKS(char_len > 1 ? 40 : 20));
+            }
+            lcd_stream_end();
 
             /* Push response to outbound */
             mimi_msg_t out = {0};
