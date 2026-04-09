@@ -218,3 +218,55 @@ void wifi_manager_scan_and_print(void)
     free(ap_list);
     esp_wifi_connect();
 }
+
+bool wifi_manager_has_saved_credentials(void)
+{
+    /* Check build-time secret first */
+    if (MIMI_SECRET_WIFI_SSID[0] != '\0') return true;
+
+    /* Check NVS */
+    char ssid[64] = {0};
+    size_t len = sizeof(ssid);
+    nvs_handle_t h;
+    if (nvs_open(MIMI_NVS_WIFI, NVS_READONLY, &h) != ESP_OK) return false;
+    esp_err_t err = nvs_get_str(h, MIMI_NVS_KEY_SSID, ssid, &len);
+    nvs_close(h);
+    return (err == ESP_OK && ssid[0] != '\0');
+}
+
+esp_err_t wifi_manager_start_from_nvs(void)
+{
+    /* Try NVS credentials first, then fall back to secrets */
+    wifi_config_t wifi_cfg = {0};
+    bool found = false;
+
+    char ssid[64] = {0}, pass[64] = {0};
+    size_t ssid_len = sizeof(ssid), pass_len = sizeof(pass);
+    nvs_handle_t h;
+    if (nvs_open(MIMI_NVS_WIFI, NVS_READONLY, &h) == ESP_OK) {
+        if (nvs_get_str(h, MIMI_NVS_KEY_SSID, ssid, &ssid_len) == ESP_OK && ssid[0]) {
+            nvs_get_str(h, MIMI_NVS_KEY_PASS, pass, &pass_len);
+            found = true;
+        }
+        nvs_close(h);
+    }
+
+    if (!found && MIMI_SECRET_WIFI_SSID[0] != '\0') {
+        strncpy(ssid, MIMI_SECRET_WIFI_SSID, sizeof(ssid) - 1);
+        strncpy(pass, MIMI_SECRET_WIFI_PASS, sizeof(pass) - 1);
+        found = true;
+    }
+
+    if (!found) {
+        ESP_LOGW(TAG, "No WiFi credentials found in NVS or secrets");
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    strncpy((char *)wifi_cfg.sta.ssid,     ssid, sizeof(wifi_cfg.sta.ssid) - 1);
+    strncpy((char *)wifi_cfg.sta.password, pass, sizeof(wifi_cfg.sta.password) - 1);
+
+    ESP_LOGI(TAG, "Connecting to SSID (from NVS): %s", ssid);
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg));
+    ESP_ERROR_CHECK(esp_wifi_start());
+    return ESP_OK;
+}

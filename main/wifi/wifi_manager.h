@@ -49,3 +49,15 @@ EventGroupHandle_t wifi_manager_get_event_group(void);
  * Scan and print nearby APs.
  */
 void wifi_manager_scan_and_print(void);
+
+/**
+ * Check if WiFi SSID credentials are saved in NVS.
+ * Returns true if an SSID is configured (either in secrets or NVS).
+ */
+bool wifi_manager_has_saved_credentials(void);
+
+/**
+ * Start WiFi using credentials stored in NVS (ignores mimi_secrets.h).
+ * Used after config portal saves credentials.
+ */
+esp_err_t wifi_manager_start_from_nvs(void);

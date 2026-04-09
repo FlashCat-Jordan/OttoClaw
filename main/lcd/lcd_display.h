@@ -8,7 +8,7 @@ typedef enum {
     LCD_STATE_SLEEPING,       // 睡觉中
     LCD_STATE_CONNECTING,     // 联网中
     LCD_STATE_CONNECTED,      // 已连接
-    LCD_STATE_ERROR,          // 网络没连上
+    LCD_STATE_ERROR,          // 网络挂了
     LCD_STATE_THINKING,       // 思考中
     LCD_STATE_SPEAKING,       // 在码字
     LCD_STATE_LISTENING,      // 在听
@@ -30,6 +30,9 @@ typedef enum {
     LCD_STATE_SHY,            // 害羞中
     LCD_STATE_EXCITED,        // 亢奋中
 
+    // 配置模式
+    LCD_STATE_CONFIG,         // 配置中（显示QR码）
+
     LCD_STATE_COUNT
 } lcd_state_t;
 
@@ -39,3 +42,13 @@ void lcd_set_state(lcd_state_t state);
 void lcd_show_chat_message(const char *role, const char *content);
 void lcd_clear_chat(void);
 void lcd_set_status_text(const char *text);
+
+// 流式逐字显示 API
+void lcd_stream_begin(bool is_assistant);          // 开始新一条流式消息
+void lcd_stream_append(const char *chunk);         // 追加文本块（可多字符）
+void lcd_stream_end(void);                         // 结束当前流式消息
+
+// QR 码显示（配置模式）
+void lcd_show_qr_overlay(const char *url, const char *hint);
+void lcd_draw_qr_matrix(const uint8_t *modules, int size);
+void lcd_hide_qr_overlay(void);

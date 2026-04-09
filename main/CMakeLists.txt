@@ -26,6 +26,8 @@ idf_component_register(
         "cron/cron_service.c"
         "heartbeat/heartbeat_service.c"
         "voice/voice_transcription.c"
+        "qrcode/qrcode.c"
+        "config_portal/config_portal.c"
     INCLUDE_DIRS
         "."
     REQUIRES
