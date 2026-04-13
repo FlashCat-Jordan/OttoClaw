@@ -218,7 +218,7 @@ esp_err_t voice_transcription_init(void)
         nvs_get_str(nvs, MIMI_NVS_KEY_API_KEY, s_api_key, &len);
         
         len = sizeof(s_base_url);
-        nvs_get_str(nvs, "whisper_base_url", s_base_url, &len);
+        nvs_get_str(nvs, MIMI_NVS_KEY_WHISPER_BASE_URL, s_base_url, &len);
         
         nvs_close(nvs);
     }
@@ -315,7 +315,7 @@ esp_err_t voice_set_base_url(const char *base_url)
     nvs_handle_t nvs;
     esp_err_t err = nvs_open(MIMI_NVS_LLM, NVS_READWRITE, &nvs);
     if (err == ESP_OK) {
-        nvs_set_str(nvs, "whisper_base_url", s_base_url);
+        nvs_set_str(nvs, MIMI_NVS_KEY_WHISPER_BASE_URL, s_base_url);
         nvs_commit(nvs);
         nvs_close(nvs);
     }

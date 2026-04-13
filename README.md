@@ -11,32 +11,33 @@
   <img src="assets/banner.png" alt="MiaomiaoClaw" width="480" />
 </p>
 
-**The world's first AI assistant(OpenClaw) on a $5 chip. No Linux. No Node.js. Just pure C**
+**An ESP32-S3 AI assistant with config portal, DingTalk chat, WebSocket access, LCD expressions, and Otto robot motions — all in pure C.**
 
-MiaomiaoClaw turns a tiny ESP32-S3 board into a personal AI assistant. Plug it into USB power, connect to WiFi, and talk to it through Telegram — it handles any task you throw at it and evolves over time with local memory — all on a chip the size of a thumb.
+MiaomiaoClaw turns a tiny ESP32-S3 board into a personal AI assistant. Power it by USB, connect it to WiFi, finish setup in the built-in config portal, and then talk to it through DingTalk or WebSocket. Claude runs through an on-device agent loop, uses tools, reads local memory, and drives both the LCD and Otto feedback on the same board.
 
 ## Meet MiaomiaoClaw
 
 - **Tiny** — No Linux, no Node.js, no bloat — just pure C
-- **Handy** — Message it from Telegram, it handles the rest
+- **Connected** — Built-in config portal, DingTalk bot, and WebSocket gateway
+- **Embodied** — LCD moods and Otto movement feedback
 - **Loyal** — Learns from memory, remembers across reboots
 - **Energetic** — USB power, 0.5 W, runs 24/7
-- **Lovable** — One ESP32-S3 board, $5, nothing else
 
 ## How It Works
 
 ![](assets/mimiclaw.png)
 
-You send a message on Telegram. The ESP32-S3 picks it up over WiFi, feeds it into an agent loop — Claude thinks, calls tools, reads memory — and sends the reply back. Everything runs on a single $5 chip with all your data stored locally on flash.
+A channel module receives a message from DingTalk or WebSocket, normalizes it into the internal message bus, and hands it to the agent loop. The ESP32-S3 builds context from config + memory + sessions, calls the LLM with tool use, saves the result locally, and sends the reply back through the same channel. During chat it can also update LCD mood and trigger short Otto actions.
 
 ## Quick Start
 
 ### What You Need
 
-- An **ESP32-S3 dev board** with 16 MB flash and 8 MB PSRAM (e.g. Xiaozhi AI board, ~$10)
+- An **ESP32-S3 dev board** with 16 MB flash and 8 MB PSRAM
 - A **USB Type-C cable**
-- A **Telegram bot token** — talk to [@BotFather](https://t.me/BotFather) on Telegram to create one
-- An **Anthropic API key** — from [console.anthropic.com](https://console.anthropic.com)
+- An **LLM API key** — Anthropic by default, or another configured provider
+- Optional: **DingTalk app credentials**
+- Optional: **Brave Search API key**
 
 ### Install
 
@@ -52,77 +53,81 @@ idf.py set-target esp32s3
 
 ### Configure
 
-MiaomiaoClaw uses a **two-layer config** system: build-time defaults in `mimi_secrets.h`, with runtime overrides via the serial CLI. CLI values are stored in NVS flash and take priority over build-time values.
+MiaomiaoClaw uses a **two-layer config** system: build-time defaults in `mimi_secrets.h`, with runtime overrides stored in NVS. You can configure the device from the serial CLI or from the built-in web portal.
 
 ```bash
 cp main/mimi_secrets.h.example main/mimi_secrets.h
 ```
 
-Edit `main/mimi_secrets.h`:
+Edit `main/mimi_secrets.h` if you want build-time defaults:
 
 ```c
-#define MIMI_SECRET_WIFI_SSID       "YourWiFiName"
-#define MIMI_SECRET_WIFI_PASS       "YourWiFiPassword"
-#define MIMI_SECRET_TG_TOKEN        "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
-#define MIMI_SECRET_API_KEY         "sk-ant-api03-xxxxx"
-#define MIMI_SECRET_SEARCH_KEY      ""              // optional: Brave Search API key
-#define MIMI_SECRET_PROXY_HOST      ""              // optional: e.g. "10.0.0.1"
-#define MIMI_SECRET_PROXY_PORT      ""              // optional: e.g. "7897"
+#define MIMI_SECRET_WIFI_SSID              "YourWiFiName"
+#define MIMI_SECRET_WIFI_PASS              "YourWiFiPassword"
+#define MIMI_SECRET_DINGTALK_APP_KEY       "dingxxxx"
+#define MIMI_SECRET_DINGTALK_APP_SECRET    "xxxx"
+#define MIMI_SECRET_API_KEY                "sk-ant-api03-xxxxx"
+#define MIMI_SECRET_MODEL_PROVIDER         "anthropic"
+#define MIMI_SECRET_MODEL                  "claude-opus-4-5"
+#define MIMI_SECRET_API_BASE_URL           ""
+#define MIMI_SECRET_SEARCH_KEY             ""
+#define MIMI_SECRET_PROXY_HOST             ""
+#define MIMI_SECRET_PROXY_PORT             ""
 ```
 
 Then build and flash:
 
 ```bash
-# Clean build (required after any mimi_secrets.h change)
 idf.py fullclean && idf.py build
-
-# Find your serial port
-ls /dev/cu.usb*          # macOS
-ls /dev/ttyACM*          # Linux
-
-# Flash and monitor (replace PORT with your port)
-# USB adapter: likely /dev/cu.usbmodem11401 (macOS) or /dev/ttyACM0 (Linux)
 idf.py -p PORT flash monitor
 ```
 
-> **Important: Plug into the correct USB port!** Most ESP32-S3 boards have two USB-C ports. You must use the one labeled **USB** (native USB Serial/JTAG), **not** the one labeled **COM** (external UART bridge). Plugging into the wrong port will cause flash/monitor failures.
->
-> <details>
-> <summary>Show reference photo</summary>
->
-> <img src="assets/esp32s3-usb-port.jpg" alt="Plug into the USB port, not COM" width="480" />
->
-> </details>
+### First Boot
+
+If no WiFi credentials are stored, or if you hold the BOOT button during startup, the device enters **config portal** mode:
+
+1. Connect your phone or computer to the hotspot `MiaomiaoClaw-XXXX`
+2. Open `http://192.168.4.1`
+3. Configure WiFi, LLM, DingTalk, proxy/search, and test Otto motions
+4. Save and reboot
 
 ### CLI Commands
 
-Connect via serial to configure or debug. **Config commands** let you change settings without recompiling — just plug in a USB cable anywhere.
+Connect via serial to configure or debug.
 
 **Runtime config** (saved to NVS, overrides build-time defaults):
 
 ```
-mimi> wifi_set MySSID MyPassword   # change WiFi network
-mimi> set_tg_token 123456:ABC...   # change Telegram bot token
-mimi> set_api_key sk-ant-api03-... # change Anthropic API key
-mimi> set_model claude-sonnet-4-5  # change LLM model
-mimi> set_proxy 127.0.0.1 7897  # set HTTP proxy
-mimi> clear_proxy                  # remove proxy
-mimi> set_search_key BSA...        # set Brave Search API key
-mimi> config_show                  # show all config (masked)
-mimi> config_reset                 # clear NVS, revert to build-time defaults
+mimi> wifi_set MySSID MyPassword
+mimi> set_dingtalk dingxxx secretxxx
+mimi> set_api_key sk-ant-api03-...
+mimi> set_model claude-sonnet-4-5
+mimi> set_model_provider anthropic
+mimi> set_proxy 127.0.0.1 7897
+mimi> clear_proxy
+mimi> set_search_key BSA...
+mimi> config_show
+mimi> config_reset
 ```
 
 **Debug & maintenance:**
 
 ```
-mimi> wifi_status              # am I connected?
-mimi> memory_read              # see what the bot remembers
-mimi> memory_write "content"   # write to MEMORY.md
-mimi> heap_info                # how much RAM is free?
-mimi> session_list             # list all chat sessions
-mimi> session_clear 12345      # wipe a conversation
-mimi> restart                  # reboot
+mimi> wifi_status
+mimi> wifi_scan
+mimi> memory_read
+mimi> memory_write "content"
+mimi> heap_info
+mimi> session_list
+mimi> session_clear 12345
+mimi> restart
 ```
+
+## Channels
+
+- **DingTalk** — primary mobile chat channel in this fork
+- **WebSocket gateway** — port `18789`, useful for LAN UI or bridge services
+- **Serial CLI** — local maintenance and debugging
 
 ## Memory
 
@@ -130,37 +135,43 @@ MiaomiaoClaw stores everything as plain text files you can read and edit:
 
 | File | What it is |
 |------|------------|
-| `SOUL.md` | The bot's personality — edit this to change how it behaves |
-| `USER.md` | Info about you — name, preferences, language |
-| `MEMORY.md` | Long-term memory — things the bot should always remember |
-| `2026-02-05.md` | Daily notes — what happened today |
-| `tg_12345.jsonl` | Chat history — your conversation with the bot |
+| `SOUL.md` | The bot's personality |
+| `USER.md` | User profile and preferences |
+| `IDENTITY.md` | Product/identity bootstrap text |
+| `AGENTS.md` | Agent behavior guidance |
+| `TOOLS.md` | Tool guidance |
+| `MEMORY.md` | Long-term memory |
+| `YYYY-MM-DD.md` | Daily notes |
+| `<chat_id>.jsonl` | Session history |
 
 ## Tools
 
-MiaomiaoClaw uses Anthropic's tool use protocol — Claude can call tools during a conversation and loop until the task is done (ReAct pattern).
+MiaomiaoClaw uses Anthropic-style tool use / ReAct loops.
 
 | Tool | Description |
 |------|-------------|
-| `web_search` | Search the web via Brave Search API for current information |
-| `get_current_time` | Fetch current date/time via HTTP and set the system clock |
-
-To enable web search, set a [Brave Search API key](https://brave.com/search/api/) via `MIMI_SECRET_SEARCH_KEY` in `mimi_secrets.h`.
+| `web_search` | Search the web via Brave Search API |
+| `get_current_time` | Fetch current date/time and set the system clock |
+| `read_file` / `write_file` / `edit_file` / `list_dir` | SPIFFS file access |
+| `memory_write` / `memory_append_today` | Persistent memory operations |
+| `self.otto.action` | Trigger robot motions |
 
 ## Also Included
 
-- **WebSocket gateway** on port 18789 — connect from your LAN with any WebSocket client
-- **OTA updates** — flash new firmware over WiFi, no USB needed
-- **Dual-core** — network I/O and AI processing run on separate CPU cores
+- **Config portal** — AP mode + web UI for first-time setup
+- **LCD mood system** — thinking/speaking/base moods during chat
+- **Otto robot actions** — short expression motions and motion test page
+- **Dual-core layout** — I/O and agent processing split across CPU cores
 - **HTTP proxy** — CONNECT tunnel support for restricted networks
-- **Tool use** — ReAct agent loop with Anthropic tool use protocol
+- **Cron / heartbeat services** — background services available in the firmware
+- **Voice transcription module** — present in firmware, not yet fully wired into the main chat flow
 
 ## For Developers
 
 Technical details live in the `docs/` folder:
 
-- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — system design, module map, task layout, memory budget, protocols, flash partitions
-- **[docs/TODO.md](docs/TODO.md)** — feature gap tracker and roadmap
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — current system design and module map
+- **[docs/TODO.md](docs/TODO.md)** — current optimization roadmap for this fork
 
 ## License
 
@@ -168,7 +179,7 @@ MIT
 
 ## Acknowledgments
 
-Inspired by [OpenClaw](https://github.com/openclaw/openclaw) and [Nanobot](https://github.com/HKUDS/nanobot). MiaomiaoClaw reimplements the core AI agent architecture for embedded hardware — no Linux, no server, just a $5 chip.
+Inspired by [OpenClaw](https://github.com/openclaw/openclaw) and [Nanobot](https://github.com/HKUDS/nanobot). MiaomiaoClaw adapts the core AI agent architecture for embedded hardware while extending it toward a more embodied device experience.
 
 ## Star History
 

@@ -41,23 +41,22 @@ static const char *TAG = "lcd";
 // ═══════════════════════════════════════════════════════════
 //  颜色定义
 // ═══════════════════════════════════════════════════════════
-#define C_BG            lv_color_hex(0x080818)  // 屏幕背景
-#define C_FACE_BG       lv_color_hex(0x0A0A20)  // 脸部背景
-#define C_MOUTH_BG      lv_color_hex(0x0C0C22)  // 对话区背景
-#define C_MOUTH_BORDER  lv_color_hex(0x1A1A4A)
+#define C_BG            lv_color_hex(0x0A0A12)  // 屏幕背景
+#define C_FACE_BG       lv_color_hex(0x0A0A12)  // 机器人区背景
+#define C_MOUTH_BG      lv_color_hex(0x0C0C1E)  // 对话区背景
+#define C_MOUTH_BORDER  lv_color_hex(0x1A1A3A)
 #define C_TEXT_USER     lv_color_hex(0x80FFB0)
 #define C_TEXT_ASSIST   lv_color_hex(0xB0B0FF)
 #define C_TEXT_DIM      lv_color_hex(0x505070)
 
-// 机甲座舱颜色
-#define C_MECHA_DARK    lv_color_hex(0x0D1520)  // 机甲主体深色
-#define C_MECHA_MID     lv_color_hex(0x1A2A3A)  // 机甲中间色
-#define C_MECHA_EDGE    lv_color_hex(0x2A3A4A)  // 机甲边缘
-#define C_COCKPIT_GLASS lv_color_hex(0x0A1828)  // 座舱玻璃深蓝
-#define C_PILOT_SKIN    lv_color_hex(0xF4C48A)  // 小人肤色
-#define C_PILOT_SUIT    lv_color_hex(0x1A3A6A)  // 驾驶服
+// Otto 机器人颜色
+#define C_ROBOT_BODY    lv_color_hex(0x1A1A22)  // 机器人主体（近黑偏蓝）
+#define C_ROBOT_EDGE    lv_color_hex(0xDDDDEE)  // 白色轮廓线
+#define C_ROBOT_JOINT   lv_color_hex(0x2A2A3A)  // 关节/暗部
+#define C_SCREEN_BG     lv_color_hex(0x040810)  // 头部屏幕背景（极深蓝）
+#define C_SCREEN_BORDER lv_color_hex(0x303060)  // 屏幕边框
 
-// 状态主题色（座舱发光颜色）
+// 情绪主题色
 #define C_CYAN          lv_color_hex(0x00E5FF)
 #define C_PURPLE        lv_color_hex(0x8B2FF7)
 #define C_GREEN         lv_color_hex(0x00FF88)
@@ -73,6 +72,44 @@ static const char *TAG = "lcd";
 #define C_DIM_BLUE      lv_color_hex(0x1A2A4A)
 
 // ═══════════════════════════════════════════════════════════
+//  Otto 机器人部件句柄
+// ═══════════════════════════════════════════════════════════
+// 头部
+static lv_obj_t *robot_head    = NULL;  // 头部方块
+static lv_obj_t *antenna_l     = NULL;  // 左天线杆
+static lv_obj_t *antenna_r     = NULL;  // 右天线杆
+static lv_obj_t *antenna_ball_l = NULL; // 左天线顶球
+static lv_obj_t *antenna_ball_r = NULL; // 右天线顶球
+static lv_obj_t *face_screen   = NULL;  // 头部屏幕（表情显示区）
+static lv_obj_t *scan_line     = NULL;  // 扫描线
+
+// 眼睛（在 face_screen 内）
+static lv_obj_t *eye_l         = NULL;
+static lv_obj_t *eye_r         = NULL;
+static lv_obj_t *pupil_l       = NULL;  // 瞳孔高光
+static lv_obj_t *pupil_r       = NULL;
+static lv_obj_t *brow_l        = NULL;  // 眉毛
+static lv_obj_t *brow_r        = NULL;
+
+// 嘴巴（在 face_screen 内）
+static lv_obj_t *mouth_shape   = NULL;
+
+// 装饰（在 face_screen 内）
+static lv_obj_t *deco_l        = NULL;  // 左装饰（腮红/星/心）
+static lv_obj_t *deco_r        = NULL;  // 右装饰
+static lv_obj_t *zzz_label     = NULL;  // ZZZ
+static lv_obj_t *exclaim       = NULL;  // ！
+
+// 身体
+static lv_obj_t *robot_body    = NULL;  // 躯干
+static lv_obj_t *arm_l         = NULL;  // 左手臂
+static lv_obj_t *arm_r         = NULL;  // 右手臂
+static lv_obj_t *leg_l         = NULL;  // 左腿
+static lv_obj_t *leg_r         = NULL;  // 右腿
+static lv_obj_t *foot_l        = NULL;  // 左脚
+static lv_obj_t *foot_r        = NULL;  // 右脚
+
+// ═══════════════════════════════════════════════════════════
 //  硬件句柄
 // ═══════════════════════════════════════════════════════════
 static esp_lcd_panel_io_handle_t lcd_io    = NULL;
@@ -80,52 +117,13 @@ static esp_lcd_panel_handle_t    lcd_panel = NULL;
 static lv_display_t             *lvgl_disp = NULL;
 
 // ═══════════════════════════════════════════════════════════
-//  UI 对象声明
+//  UI 根对象
 // ═══════════════════════════════════════════════════════════
-static lv_obj_t *screen       = NULL;
-static lv_obj_t *face_area    = NULL;   // 上半区 240×128
-
-// ── 机甲主体 ──
-static lv_obj_t *mecha_body   = NULL;   // 机甲身体（大矩形）
-static lv_obj_t *mecha_arm_l  = NULL;   // 左手臂
-static lv_obj_t *mecha_arm_r  = NULL;   // 右手臂
-static lv_obj_t *thruster_l   = NULL;   // 左推进器
-static lv_obj_t *thruster_r   = NULL;   // 右推进器
-static lv_obj_t *mecha_leg_l  = NULL;   // 左腿
-static lv_obj_t *mecha_leg_r  = NULL;   // 右腿
-
-// ── 座舱 ──
-static lv_obj_t *cockpit_outer = NULL;  // 座舱外框
-static lv_obj_t *cockpit_glass = NULL;  // 座舱玻璃（带边框发光）
-static lv_obj_t *scan_line     = NULL;  // 扫描线（联网动画）
-
-// ── 小人头部（在座舱内） ──
-static lv_obj_t *pilot_head   = NULL;
-static lv_obj_t *pilot_eye_l  = NULL;
-static lv_obj_t *pilot_eye_r  = NULL;
-static lv_obj_t *pilot_brow_l = NULL;  // 眉毛
-static lv_obj_t *pilot_brow_r = NULL;
-static lv_obj_t *pilot_mouth  = NULL;
-static lv_obj_t *pilot_blush_l = NULL; // 腮红（害羞）
-static lv_obj_t *pilot_blush_r = NULL;
-static lv_obj_t *sweat_drop   = NULL;  // 汗珠
-
-// ── 装饰特效 ──
-static lv_obj_t *heart_l      = NULL;  // 心形（恋爱）
-static lv_obj_t *heart_r      = NULL;
-static lv_obj_t *star_l       = NULL;  // 星星
-static lv_obj_t *star_r       = NULL;
-static lv_obj_t *zzz_label    = NULL;  // ZZZ（睡觉）
-static lv_obj_t *exclaim      = NULL;  // ！（惊讶）
-
-// ── 对话区 ──
-static lv_obj_t *mouth_area   = NULL;
-static lv_obj_t *stream_label = NULL;  // 当前流式消息label
-static lv_obj_t *wifi_icon    = NULL;
-static lv_obj_t *status_label = NULL;
+static lv_obj_t *screen    = NULL;
+static lv_obj_t *face_area = NULL;   // 上半区 240×132，容纳机器人
 
 // ── 配网提示覆盖层 ──
-static lv_obj_t *qr_overlay   = NULL;  // 全屏遮罩
+static lv_obj_t *qr_overlay   = NULL;
 
 // ── 状态 ──
 static lcd_state_t current_state = LCD_STATE_SLEEPING;
@@ -144,8 +142,335 @@ static lv_color_t stream_color;
 static uint32_t mood_ticks = 0;
 
 // ═══════════════════════════════════════════════════════════
-//  状态文字映射
+//  工具函数
 // ═══════════════════════════════════════════════════════════
+
+void lcd_backlight_set(bool on)
+{
+    gpio_set_level(PIN_BL, on ? 1 : 0);
+}
+
+static void stop_all_anims(void)
+{
+    lv_obj_t *objs[] = {
+        robot_head, robot_body, arm_l, arm_r, leg_l, leg_r, foot_l, foot_r,
+        antenna_l, antenna_r, antenna_ball_l, antenna_ball_r,
+        face_screen, scan_line,
+        eye_l, eye_r, pupil_l, pupil_r, brow_l, brow_r,
+        mouth_shape, deco_l, deco_r, zzz_label, exclaim
+    };
+    for (int i = 0; i < (int)(sizeof(objs)/sizeof(objs[0])); i++) {
+        if (objs[i]) lv_anim_delete(objs[i], NULL);
+    }
+}
+
+static void hide_all_decorations(void)
+{
+    lv_obj_t *deco[] = { deco_l, deco_r, zzz_label, exclaim, scan_line };
+    for (int i = 0; i < (int)(sizeof(deco)/sizeof(deco[0])); i++) {
+        if (deco[i]) lv_obj_add_flag(deco[i], LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+// 动画回调
+static void anim_opa_cb(void *var, int32_t v)
+{
+    lv_obj_set_style_bg_opa((lv_obj_t*)var, (lv_opa_t)v, 0);
+}
+static void anim_border_opa_cb(void *var, int32_t v)
+{
+    lv_obj_set_style_border_opa((lv_obj_t*)var, (lv_opa_t)v, 0);
+}
+static void anim_x_cb(void *var, int32_t v)   { lv_obj_set_x((lv_obj_t*)var, v); }
+static void anim_y_cb(void *var, int32_t v)   { lv_obj_set_y((lv_obj_t*)var, v); }
+static void anim_w_cb(void *var, int32_t v)   { lv_obj_set_width((lv_obj_t*)var, v); }
+static void anim_h_cb(void *var, int32_t v)   { lv_obj_set_height((lv_obj_t*)var, v); }
+
+static void make_inf(lv_obj_t *obj, lv_anim_exec_xcb_t cb,
+                     int32_t from, int32_t to, uint32_t dur, uint32_t pb)
+{
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, obj);
+    lv_anim_set_exec_cb(&a, cb);
+    lv_anim_set_values(&a, from, to);
+    lv_anim_set_time(&a, dur);
+    lv_anim_set_playback_time(&a, pb);
+    lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+    lv_anim_start(&a);
+}
+
+static void make_once(lv_obj_t *obj, lv_anim_exec_xcb_t cb,
+                      int32_t from, int32_t to, uint32_t dur, uint32_t pb)
+{
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, obj);
+    lv_anim_set_exec_cb(&a, cb);
+    lv_anim_set_values(&a, from, to);
+    lv_anim_set_time(&a, dur);
+    lv_anim_set_playback_time(&a, pb);
+    lv_anim_set_repeat_count(&a, 1);
+    lv_anim_start(&a);
+}
+
+// 设置屏幕发光边框颜色（情绪主色）
+static void set_screen_glow(lv_color_t col)
+{
+    if (face_screen) lv_obj_set_style_border_color(face_screen, col, 0);
+    if (antenna_ball_l) lv_obj_set_style_bg_color(antenna_ball_l, col, 0);
+    if (antenna_ball_r) lv_obj_set_style_bg_color(antenna_ball_r, col, 0);
+}
+
+// 设置眼睛颜色
+static void set_eye_color(lv_color_t col)
+{
+    if (eye_l) lv_obj_set_style_bg_color(eye_l, col, 0);
+    if (eye_r) lv_obj_set_style_bg_color(eye_r, col, 0);
+}
+
+// 重置眼睛到默认圆眼（8×8）
+static void reset_eyes_round(void)
+{
+    if (eye_l) {
+        lv_obj_set_size(eye_l, 10, 10);
+        lv_obj_set_style_radius(eye_l, 5, 0);
+        lv_obj_align(eye_l, LV_ALIGN_CENTER, -12, -4);
+    }
+    if (eye_r) {
+        lv_obj_set_size(eye_r, 10, 10);
+        lv_obj_set_style_radius(eye_r, 5, 0);
+        lv_obj_align(eye_r, LV_ALIGN_CENTER, 12, -4);
+    }
+    set_eye_color(lv_color_hex(0x00CCFF));
+}
+
+// 重置嘴巴到默认直线
+static void reset_mouth_flat(void)
+{
+    if (mouth_shape) {
+        lv_obj_set_size(mouth_shape, 18, 3);
+        lv_obj_set_style_radius(mouth_shape, 1, 0);
+        lv_obj_set_style_bg_color(mouth_shape, lv_color_hex(0x4488AA), 0);
+        lv_obj_align(mouth_shape, LV_ALIGN_CENTER, 0, 10);
+    }
+}
+
+// 重置眉毛到正常位置
+static void reset_brows(void)
+{
+    if (brow_l) {
+        lv_obj_set_size(brow_l, 10, 2);
+        lv_obj_set_style_bg_color(brow_l, lv_color_hex(0x00CCFF), 0);
+        lv_obj_set_style_radius(brow_l, 1, 0);
+        lv_obj_align(brow_l, LV_ALIGN_CENTER, -12, -15);
+    }
+    if (brow_r) {
+        lv_obj_set_size(brow_r, 10, 2);
+        lv_obj_set_style_bg_color(brow_r, lv_color_hex(0x00CCFF), 0);
+        lv_obj_set_style_radius(brow_r, 1, 0);
+        lv_obj_align(brow_r, LV_ALIGN_CENTER, 12, -15);
+    }
+}
+
+// 重置手臂到默认下垂
+static void reset_arms(void)
+{
+    if (arm_l) lv_obj_align(arm_l, LV_ALIGN_LEFT_MID, 0, 4);
+    if (arm_r) lv_obj_align(arm_r, LV_ALIGN_RIGHT_MID, 0, 4);
+}
+
+// 重置腿部到默认站立
+static void reset_legs(void)
+{
+    if (leg_l) lv_obj_align(leg_l, LV_ALIGN_BOTTOM_MID, -14, 0);
+    if (leg_r) lv_obj_align(leg_r, LV_ALIGN_BOTTOM_MID, 14, 0);
+    if (foot_l) lv_obj_align(foot_l, LV_ALIGN_BOTTOM_MID, -14, 0);
+    if (foot_r) lv_obj_align(foot_r, LV_ALIGN_BOTTOM_MID, 14, 0);
+}
+
+// 全脸重置
+static void reset_face(void)
+{
+    reset_eyes_round();
+    reset_mouth_flat();
+    reset_brows();
+    reset_arms();
+    if (face_screen) lv_obj_set_style_border_opa(face_screen, LV_OPA_COVER, 0);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  UI 构建 — Otto 小机器人
+// ═══════════════════════════════════════════════════════════
+
+// 创建一个机器人身体部件（统一样式）
+static lv_obj_t *make_part(lv_obj_t *parent, int w, int h, int radius,
+                             lv_color_t bg, int border_w, lv_color_t border_col)
+{
+    lv_obj_t *o = lv_obj_create(parent);
+    lv_obj_set_size(o, w, h);
+    lv_obj_set_style_radius(o, radius, 0);
+    lv_obj_set_style_bg_color(o, bg, 0);
+    lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(o, border_w, 0);
+    lv_obj_set_style_border_color(o, border_col, 0);
+    lv_obj_set_style_border_opa(o, LV_OPA_COVER, 0);
+    lv_obj_set_style_pad_all(o, 0, 0);
+    lv_obj_clear_flag(o, LV_OBJ_FLAG_SCROLLABLE);
+    return o;
+}
+
+static void build_robot_ui(void)
+{
+    // ── 布局参数 ──────────────────────────────────────────────
+    // face_area = 240×132，机器人居中
+    // 头部：74×56，顶部天线约16px
+    // 整体机器人高约 120px，竖直居中稍偏上
+
+    const int cx = 120;  // 水平中心
+    const int robot_top = 8;  // 机器人顶部（含天线）
+
+    // 坐标参考（相对 face_area）
+    const int head_w = 74, head_h = 54;
+    const int head_x = cx - head_w/2;      // 83
+    const int head_y = robot_top + 16;     // 天线之后，24
+
+    const int body_w = 60, body_h = 36;
+    const int body_x = cx - body_w/2;
+    const int body_y = head_y + head_h + 2;  // 80
+
+    const int arm_w = 12, arm_h = 28;
+    const int arm_y = body_y + 4;
+    const int leg_w = 16, leg_h = 24;
+    const int leg_y = body_y + body_h;
+    const int foot_w = 24, foot_h = 8;
+    const int foot_y = leg_y + leg_h;
+
+    // ── 脚（最底层先画） ──────────────────────────────────────
+    foot_l = make_part(face_area, foot_w, foot_h, 3, C_ROBOT_BODY, 2, C_ROBOT_EDGE);
+    lv_obj_set_pos(foot_l, cx - 30, foot_y);
+
+    foot_r = make_part(face_area, foot_w, foot_h, 3, C_ROBOT_BODY, 2, C_ROBOT_EDGE);
+    lv_obj_set_pos(foot_r, cx + 6, foot_y);
+
+    // ── 腿 ────────────────────────────────────────────────────
+    leg_l = make_part(face_area, leg_w, leg_h, 3, C_ROBOT_BODY, 2, C_ROBOT_EDGE);
+    lv_obj_set_pos(leg_l, cx - 26, leg_y);
+
+    leg_r = make_part(face_area, leg_w, leg_h, 3, C_ROBOT_BODY, 2, C_ROBOT_EDGE);
+    lv_obj_set_pos(leg_r, cx + 10, leg_y);
+
+    // 腿部关节圆
+    lv_obj_t *knee_l = make_part(leg_l, 10, 10, 5, C_ROBOT_JOINT, 1, C_ROBOT_EDGE);
+    lv_obj_align(knee_l, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_t *knee_r = make_part(leg_r, 10, 10, 5, C_ROBOT_JOINT, 1, C_ROBOT_EDGE);
+    lv_obj_align(knee_r, LV_ALIGN_BOTTOM_MID, 0, 0);
+
+    // ── 躯干 ─────────────────────────────────────────────────
+    robot_body = make_part(face_area, body_w, body_h, 6, C_ROBOT_BODY, 2, C_ROBOT_EDGE);
+    lv_obj_set_pos(robot_body, body_x, body_y);
+
+    // 躯干中线装饰
+    lv_obj_t *chest_line = make_part(robot_body, 2, 24, 0, C_ROBOT_EDGE, 0, C_ROBOT_EDGE);
+    lv_obj_set_style_bg_opa(chest_line, LV_OPA_30, 0);
+    lv_obj_align(chest_line, LV_ALIGN_CENTER, 0, 0);
+
+    // ── 手臂 ─────────────────────────────────────────────────
+    arm_l = make_part(face_area, arm_w, arm_h, 4, C_ROBOT_BODY, 2, C_ROBOT_EDGE);
+    lv_obj_set_pos(arm_l, body_x - arm_w - 2, arm_y);
+
+    arm_r = make_part(face_area, arm_w, arm_h, 4, C_ROBOT_BODY, 2, C_ROBOT_EDGE);
+    lv_obj_set_pos(arm_r, body_x + body_w + 2, arm_y);
+
+    // 手部关节圆
+    lv_obj_t *hand_l = make_part(arm_l, 10, 10, 5, C_ROBOT_JOINT, 1, C_ROBOT_EDGE);
+    lv_obj_align(hand_l, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_t *hand_r = make_part(arm_r, 10, 10, 5, C_ROBOT_JOINT, 1, C_ROBOT_EDGE);
+    lv_obj_align(hand_r, LV_ALIGN_BOTTOM_MID, 0, 0);
+
+    // ── 头部方块 ─────────────────────────────────────────────
+    robot_head = make_part(face_area, head_w, head_h, 8, C_ROBOT_BODY, 2, C_ROBOT_EDGE);
+    lv_obj_set_pos(robot_head, head_x, head_y);
+
+    // 头部肩膀连接块（头比躯干宽，加个底座过渡）
+    lv_obj_t *neck = make_part(face_area, 28, 6, 2, C_ROBOT_BODY, 1, C_ROBOT_EDGE);
+    lv_obj_set_pos(neck, cx - 14, head_y + head_h);
+
+    // ── 天线（在头部上方） ────────────────────────────────────
+    antenna_l = make_part(face_area, 2, 16, 0, C_ROBOT_EDGE, 0, C_ROBOT_EDGE);
+    lv_obj_set_pos(antenna_l, head_x + 16, robot_top + 2);
+
+    antenna_r = make_part(face_area, 2, 16, 0, C_ROBOT_EDGE, 0, C_ROBOT_EDGE);
+    lv_obj_set_pos(antenna_r, head_x + head_w - 18, robot_top + 2);
+
+    antenna_ball_l = make_part(face_area, 7, 7, 4, C_CYAN, 0, C_CYAN);
+    lv_obj_set_pos(antenna_ball_l, head_x + 13, robot_top - 1);
+
+    antenna_ball_r = make_part(face_area, 7, 7, 4, C_CYAN, 0, C_CYAN);
+    lv_obj_set_pos(antenna_ball_r, head_x + head_w - 20, robot_top - 1);
+
+    // ── 头部屏幕（表情显示区，嵌入头部） ─────────────────────
+    face_screen = make_part(robot_head, 56, 40, 4, C_SCREEN_BG, 2, C_CYAN);
+    lv_obj_align(face_screen, LV_ALIGN_CENTER, 0, 2);
+
+    // 扫描线（在 face_screen 内，默认隐藏）
+    scan_line = make_part(face_screen, 56, 2, 0, C_ORANGE, 0, C_ORANGE);
+    lv_obj_set_style_bg_opa(scan_line, LV_OPA_70, 0);
+    lv_obj_align(scan_line, LV_ALIGN_TOP_MID, 0, 0);
+    lv_obj_add_flag(scan_line, LV_OBJ_FLAG_HIDDEN);
+
+    // ── 眉毛（在 face_screen 内） ────────────────────────────
+    brow_l = make_part(face_screen, 10, 2, 1, lv_color_hex(0x00CCFF), 0, C_CYAN);
+    lv_obj_align(brow_l, LV_ALIGN_CENTER, -12, -15);
+
+    brow_r = make_part(face_screen, 10, 2, 1, lv_color_hex(0x00CCFF), 0, C_CYAN);
+    lv_obj_align(brow_r, LV_ALIGN_CENTER, 12, -15);
+
+    // ── 眼睛（在 face_screen 内） ────────────────────────────
+    eye_l = make_part(face_screen, 10, 10, 5, lv_color_hex(0x00CCFF), 0, C_CYAN);
+    lv_obj_align(eye_l, LV_ALIGN_CENTER, -12, -4);
+
+    // 左眼高光
+    pupil_l = make_part(eye_l, 3, 3, 2, C_WHITE, 0, C_WHITE);
+    lv_obj_align(pupil_l, LV_ALIGN_TOP_RIGHT, -1, 1);
+
+    eye_r = make_part(face_screen, 10, 10, 5, lv_color_hex(0x00CCFF), 0, C_CYAN);
+    lv_obj_align(eye_r, LV_ALIGN_CENTER, 12, -4);
+
+    // 右眼高光
+    pupil_r = make_part(eye_r, 3, 3, 2, C_WHITE, 0, C_WHITE);
+    lv_obj_align(pupil_r, LV_ALIGN_TOP_RIGHT, -1, 1);
+
+    // ── 嘴巴（在 face_screen 内） ────────────────────────────
+    mouth_shape = make_part(face_screen, 18, 3, 1, lv_color_hex(0x4488AA), 0, C_CYAN);
+    lv_obj_align(mouth_shape, LV_ALIGN_CENTER, 0, 10);
+
+    // ── 装饰物（默认隐藏） ───────────────────────────────────
+    // deco_l / deco_r 根据情绪切换用途（腮红/心/星）
+    deco_l = make_part(face_screen, 8, 5, 3, C_PINK, 0, C_PINK);
+    lv_obj_align(deco_l, LV_ALIGN_CENTER, -20, 4);
+    lv_obj_add_flag(deco_l, LV_OBJ_FLAG_HIDDEN);
+
+    deco_r = make_part(face_screen, 8, 5, 3, C_PINK, 0, C_PINK);
+    lv_obj_align(deco_r, LV_ALIGN_CENTER, 20, 4);
+    lv_obj_add_flag(deco_r, LV_OBJ_FLAG_HIDDEN);
+
+    // ZZZ 标签
+    zzz_label = lv_label_create(face_screen);
+    lv_obj_set_style_text_font(zzz_label, font_sm, 0);
+    lv_obj_set_style_text_color(zzz_label, C_DIM_BLUE, 0);
+    lv_label_set_text(zzz_label, "z z");
+    lv_obj_align(zzz_label, LV_ALIGN_TOP_RIGHT, -2, 2);
+    lv_obj_add_flag(zzz_label, LV_OBJ_FLAG_HIDDEN);
+
+    // ！标签（惊讶）
+    exclaim = lv_label_create(face_screen);
+    lv_obj_set_style_text_font(exclaim, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(exclaim, C_YELLOW, 0);
+    lv_label_set_text(exclaim, "!!");
+    lv_obj_align(exclaim, LV_ALIGN_TOP_MID, 0, 1);
+    lv_obj_add_flag(exclaim, LV_OBJ_FLAG_HIDDEN);
+}
 static const char *state_labels[LCD_STATE_COUNT] = {
     [LCD_STATE_SLEEPING]     = "在睡觉",
     [LCD_STATE_CONNECTING]   = "联网中",

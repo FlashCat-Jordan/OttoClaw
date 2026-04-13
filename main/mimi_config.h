@@ -132,3 +132,4 @@
 #define MIMI_NVS_KEY_PROXY_HOST      "host"
 #define MIMI_NVS_KEY_PROXY_PORT      "port"
 #define MIMI_NVS_KEY_SEARCH_KEY      "search_key"
+#define MIMI_NVS_KEY_WHISPER_BASE_URL "whisper_url"

@@ -33,7 +33,7 @@
             font-size: 24px;
         }
         .container {
-            max-width: 600px;
+            max-width: 680px;
             margin: 0 auto;
         }
         .section {
@@ -89,10 +89,6 @@
         .btn:hover {
             background: #d63d56;
         }
-        .btn:disabled {
-            background: #444;
-            cursor: not-allowed;
-        }
         .btn-secondary {
             background: #0f3460;
         }
@@ -121,20 +117,50 @@
             border-radius: 6px;
             font-size: 13px;
             margin-bottom: 10px;
+            line-height: 1.6;
+        }
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 10px;
+        }
+        .status-pill {
+            background: #1a1a2e;
+            border: 1px solid #0f3460;
+            border-radius: 8px;
+            padding: 10px;
+        }
+        .status-pill strong {
+            display: block;
+            color: #e94560;
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
+        .mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
         }
     </style>
 </head>
 <body>
     <a href="/" class="back-btn">←</a>
-    
+
     <div class="container">
         <div class="header">
             <h1>MiaomiaoClaw Settings</h1>
         </div>
-        
+
         <div id="status" class="status"></div>
-        
-        <!-- WiFi Settings -->
+
+        <div class="section">
+            <h2>当前状态</h2>
+            <div class="status-grid">
+                <div class="status-pill"><strong>接入热点</strong><span id="ap-ssid" class="mono">Loading...</span></div>
+                <div class="status-pill"><strong>WiFi</strong><span id="wifi-state">Loading...</span></div>
+                <div class="status-pill"><strong>LLM</strong><span id="llm-state">Loading...</span></div>
+                <div class="status-pill"><strong>钉钉</strong><span id="dingtalk-state">Loading...</span></div>
+            </div>
+        </div>
+
         <div class="section">
             <h2>WiFi 配置</h2>
             <div class="current-info" id="current-wifi">
@@ -151,12 +177,12 @@
             </div>
             <button class="btn" onclick="saveWiFi()">保存 WiFi 配置</button>
         </div>
-        
-        <!-- Proxy Settings -->
+
         <div class="section">
-            <h2>HTTP 代理</h2>
+            <h2>代理与搜索</h2>
             <div class="current-info" id="current-proxy">
-                当前代理: <span id="proxy-addr">Loading...</span>
+                当前代理: <span id="proxy-addr">Loading...</span><br>
+                搜索 Key: <span id="search-state">Loading...</span>
             </div>
             <div class="form-group">
                 <label>代理地址</label>
@@ -167,15 +193,19 @@
                 <input type="text" id="proxy_port" placeholder="7890">
             </div>
             <button class="btn" onclick="saveProxy()">保存代理配置</button>
+            <div class="form-group" style="margin-top:16px;">
+                <label>Brave Search API Key</label>
+                <input type="password" id="search_key" placeholder="BSA...">
+            </div>
+            <button class="btn btn-secondary" onclick="saveSearch()">保存搜索 Key</button>
         </div>
-        
-        <!-- System Actions -->
+
         <div class="section">
             <h2>系统操作</h2>
-            <button class="btn btn-secondary" onclick="reconnectWiFi()">重新连接 WiFi</button>
+            <button class="btn btn-secondary" onclick="goToSetup()">打开完整配置页</button>
             <button class="btn btn-secondary" onclick="rebootDevice()">重启设备</button>
         </div>
-        
+
         <div style="text-align: center; color: #666; font-size: 12px; margin-top: 20px;">
             MiaomiaoClaw v1.0
         </div>
@@ -191,113 +221,119 @@
                 status.style.display = 'none';
             }, 3000);
         }
-        
-        function loadCurrentSettings() {
-            fetch('/api/settings')
-                .then(res => res.json())
-                .then(data => {
-                    document.getElementById('wifi-ssid').textContent = data.wifi_ssid || 'Unknown';
-                    document.getElementById('proxy-addr').textContent = 
-                        data.proxy_host ? `${data.proxy_host}:${data.proxy_port}` : 'Not configured';
-                    
-                    document.getElementById('wifi_ssid').value = data.wifi_ssid || '';
-                    document.getElementById('proxy_host').value = data.proxy_host || '';
-                    document.getElementById('proxy_port').value = data.proxy_port || '';
-                })
-                .catch(err => {
-                    console.error('Failed to load settings:', err);
-                });
+
+        async function api(path, body) {
+            const res = await fetch(path, body ? {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            } : {});
+            return res.json();
         }
-        
-        function saveWiFi() {
+
+        function yesNo(v) {
+            return v ? '已配置' : '未配置';
+        }
+
+        async function loadCurrentSettings() {
+            try {
+                const data = await api('/api/status');
+                const wifi = data.wifi || {};
+                const llm = data.llm || {};
+                const dingtalk = data.dingtalk || {};
+                const proxy = data.proxy || {};
+                const search = data.search || {};
+
+                document.getElementById('ap-ssid').textContent = data.ap_ssid || 'Unknown';
+                document.getElementById('wifi-state').textContent = wifi.configured ? (wifi.ssid || '已配置') : '未配置';
+                document.getElementById('llm-state').textContent = llm.configured ? `${llm.provider || 'LLM'} / ${llm.model || ''}` : '未配置';
+                document.getElementById('dingtalk-state').textContent = yesNo(dingtalk.configured);
+                document.getElementById('search-state').textContent = yesNo(search.configured);
+
+                document.getElementById('wifi-ssid').textContent = wifi.ssid || '未配置';
+                document.getElementById('proxy-addr').textContent = proxy.host ? `${proxy.host}:${proxy.port || ''}` : '未配置';
+
+                document.getElementById('wifi_ssid').value = wifi.ssid || '';
+                document.getElementById('proxy_host').value = proxy.host || '';
+                document.getElementById('proxy_port').value = proxy.port || '';
+                document.getElementById('search_key').value = search.key || '';
+            } catch (err) {
+                console.error('Failed to load settings:', err);
+                showStatus('加载设置失败: ' + err.message, 'error');
+            }
+        }
+
+        async function saveWiFi() {
             const ssid = document.getElementById('wifi_ssid').value.trim();
             const pass = document.getElementById('wifi_pass').value;
-            
             if (!ssid) {
                 showStatus('请输入 WiFi SSID', 'error');
                 return;
             }
-            
-            const data = { wifi_ssid: ssid };
-            if (pass) data.wifi_pass = pass;
-            
-            fetch('/api/settings/wifi', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    showStatus('WiFi 配置已保存，请重启设备或重新连接 WiFi', 'success');
+            try {
+                const data = await api('/api/wifi/connect', { ssid, password: pass });
+                if (data.ok) {
+                    showStatus(data.msg || 'WiFi 配置已保存', 'success');
                     document.getElementById('wifi_pass').value = '';
                     loadCurrentSettings();
                 } else {
-                    showStatus('保存失败: ' + (data.error || 'Unknown error'), 'error');
+                    showStatus('保存失败: ' + (data.msg || 'Unknown error'), 'error');
                 }
-            })
-            .catch(err => {
+            } catch (err) {
                 showStatus('保存失败: ' + err.message, 'error');
-            });
+            }
         }
-        
-        function saveProxy() {
+
+        async function saveProxy() {
             const host = document.getElementById('proxy_host').value.trim();
             const port = document.getElementById('proxy_port').value.trim();
-            
-            const data = {
-                proxy_host: host,
-                proxy_port: port
-            };
-            
-            fetch('/api/settings/proxy', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    showStatus('代理配置已保存，请重启设备生效', 'success');
+            try {
+                const data = await api('/api/proxy/config', { host, port });
+                if (data.ok) {
+                    showStatus(data.msg || '代理配置已保存', 'success');
                     loadCurrentSettings();
                 } else {
-                    showStatus('保存失败: ' + (data.error || 'Unknown error'), 'error');
+                    showStatus('保存失败: ' + (data.msg || 'Unknown error'), 'error');
                 }
-            })
-            .catch(err => {
+            } catch (err) {
                 showStatus('保存失败: ' + err.message, 'error');
-            });
+            }
         }
-        
-        function reconnectWiFi() {
-            if (!confirm('确定要重新连接 WiFi 吗？')) return;
-            
-            fetch('/api/system/reconnect', { method: 'POST' })
-                .then(res => res.json())
-                .then(data => {
-                    showStatus('正在重新连接 WiFi...', 'success');
-                })
-                .catch(err => {
-                    showStatus('操作失败: ' + err.message, 'error');
-                });
+
+        async function saveSearch() {
+            const search_key = document.getElementById('search_key').value.trim();
+            try {
+                const data = await api('/api/search/config', { search_key });
+                if (data.ok) {
+                    showStatus(data.msg || '搜索 Key 已保存', 'success');
+                    loadCurrentSettings();
+                } else {
+                    showStatus('保存失败: ' + (data.msg || 'Unknown error'), 'error');
+                }
+            } catch (err) {
+                showStatus('保存失败: ' + err.message, 'error');
+            }
         }
-        
-        function rebootDevice() {
+
+        async function rebootDevice() {
             if (!confirm('确定要重启设备吗？')) return;
-            
-            fetch('/api/system/reboot', { method: 'POST' })
-                .then(res => res.json())
-                .then(data => {
+            try {
+                const data = await api('/api/system/reboot', {});
+                if (data && (data.ok || data.success)) {
                     showStatus('设备正在重启...', 'success');
-                    setTimeout(() => {
-                        window.location.href = '/';
-                    }, 5000);
-                })
-                .catch(err => {
-                    showStatus('操作失败: ' + err.message, 'error');
-                });
+                    setTimeout(() => { window.location.href = '/'; }, 5000);
+                } else {
+                    showStatus('重启失败', 'error');
+                }
+            } catch (err) {
+                showStatus('操作失败: ' + err.message, 'error');
+            }
         }
-        
+
+        function goToSetup() {
+            window.location.href = '/setup.html';
+        }
+
         loadCurrentSettings();
     </script>
 </body>
