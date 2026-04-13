@@ -123,6 +123,16 @@ static lv_display_t             *lvgl_disp = NULL;
 static lv_obj_t *screen    = NULL;
 static lv_obj_t *face_area = NULL;   // 上半区 240×132，容纳机器人
 
+// robot_root 初始位置（固定基准，防止动画累积漂移）
+// 运行时由 build_robot_ui() 调用后记录真实坐标
+#define ROBOT_ROOT_Y0  (-4)
+static lv_coord_t s_robot_root_x0 = 79;  // 运行时更新
+// arm 默认位置（build_robot_ui 中 body_y+4=83，arm_l x=0, arm_r x=72）
+#define ARM_Y0  83
+// eye 默认 x 位置（face_screen 内，LV_ALIGN_CENTER ±11，eye宽10）
+#define EYE_L_X0  11
+#define EYE_R_X0  31
+
 // ── 配网提示覆盖层 ──
 static lv_obj_t *qr_overlay   = NULL;
 
@@ -133,7 +143,7 @@ static const lv_font_t *font_cn  = NULL;
 static const lv_font_t *font_sm  = NULL;
 
 // ── 流式缓冲 ──
-#define STREAM_BUF_SIZE 1024
+#define STREAM_BUF_SIZE 4096
 static char     stream_buf[STREAM_BUF_SIZE];
 static int      stream_len  = 0;
 static bool     stream_active = false;
@@ -154,7 +164,7 @@ void lcd_backlight_set(bool on)
 static void stop_all_anims(void)
 {
     lv_obj_t *objs[] = {
-        robot_head, robot_body, arm_l, arm_r, leg_l, leg_r, foot_l, foot_r,
+        robot_root, robot_head, robot_body, arm_l, arm_r, leg_l, leg_r, foot_l, foot_r,
         antenna_l, antenna_r, antenna_ball_l, antenna_ball_r,
         face_screen, scan_line,
         eye_l, eye_r, pupil_l, pupil_r, brow_l, brow_r,
@@ -198,6 +208,7 @@ static void make_inf(lv_obj_t *obj, lv_anim_exec_xcb_t cb,
     lv_anim_set_time(&a, dur);
     lv_anim_set_playback_time(&a, pb);
     lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+    lv_anim_set_early_apply(&a, true);
     lv_anim_start(&a);
 }
 
@@ -500,6 +511,10 @@ static void build_robot_ui(void)
     lv_label_set_text(exclaim, "!!");
     lv_obj_align(exclaim, LV_ALIGN_TOP_MID, 0, 1);
     lv_obj_add_flag(exclaim, LV_OBJ_FLAG_HIDDEN);
+
+    // 记录 robot_root 真实 x 坐标（align 后才有效）
+    lv_obj_update_layout(face_area);
+    s_robot_root_x0 = lv_obj_get_x(robot_root);
 }
 // ─── 对话区 ───
 static lv_obj_t *mouth_area    = NULL;
@@ -565,7 +580,7 @@ static void expr_sleeping(void)
     make_inf(antenna_ball_r, anim_opa_cb, LV_OPA_20, LV_OPA_60, 3000, 3000);
     // 整体机器人轻微下沉（放松姿态）
     make_inf(robot_root, anim_y_cb,
-             lv_obj_get_y(robot_root), lv_obj_get_y(robot_root)+2, 3000, 3000);
+             ROBOT_ROOT_Y0, ROBOT_ROOT_Y0+2, 3000, 3000);
 }
 
 // ── 联网中：橙色扫描线扫过屏幕，眼睛左右搜索 ──────────────
@@ -585,9 +600,9 @@ static void expr_connecting(void)
     make_inf(scan_line, anim_y_cb, 0, 36, 600, 100);
     // 眼睛左右来回扫（搜索信号感）
     make_inf(eye_l, anim_x_cb,
-             lv_obj_get_x(eye_l)-8, lv_obj_get_x(eye_l)+8, 700, 700);
+             EYE_L_X0-8, EYE_L_X0+8, 700, 700);
     make_inf(eye_r, anim_x_cb,
-             lv_obj_get_x(eye_r)-8, lv_obj_get_x(eye_r)+8, 700, 700);
+             EYE_R_X0-8, EYE_R_X0+8, 700, 700);
     // 天线球快速闪烁（发射信号感）
     make_inf(antenna_ball_l, anim_opa_cb, LV_OPA_20, LV_OPA_COVER, 300, 300);
     make_inf(antenna_ball_r, anim_opa_cb, LV_OPA_COVER, LV_OPA_20, 300, 300);
@@ -611,7 +626,7 @@ static void expr_connected(void)
     make_once(eye_r, anim_h_cb, 10, 14, 120, 120);
     // 整体头部小幅弹起
     make_once(robot_root, anim_y_cb,
-              lv_obj_get_y(robot_root), lv_obj_get_y(robot_root)-5, 150, 200);
+              ROBOT_ROOT_Y0, ROBOT_ROOT_Y0-5, 150, 200);
     // 屏幕边框平稳脉动
     make_inf(face_screen, anim_border_opa_cb, LV_OPA_60, LV_OPA_COVER, 800, 800);
 }
@@ -637,8 +652,7 @@ static void expr_error(void)
     lv_obj_set_style_bg_color(mouth_shape, C_RED, 0);
     lv_obj_align(mouth_shape, LV_ALIGN_CENTER, 0, 12);
     // 高频左右抖动（错误感/焦虑）
-    make_inf(robot_root, anim_x_cb,
-             lv_obj_get_x(robot_root)-4, lv_obj_get_x(robot_root)+4, 70, 70);
+    make_inf(face_screen, anim_x_cb, 4, 12, 70, 70);
     make_inf(face_screen, anim_border_opa_cb, LV_OPA_50, LV_OPA_COVER, 150, 150);
 }
 
@@ -682,14 +696,14 @@ static void expr_speaking(void)
     lv_obj_set_style_bg_color(mouth_shape, lv_color_hex(0x004433), 0);
     // 眼睛高频左右扫（快速阅读/编写内容）
     make_inf(eye_l, anim_x_cb,
-             lv_obj_get_x(eye_l)-10, lv_obj_get_x(eye_l)+10, 180, 30);
+             EYE_L_X0-10, EYE_L_X0+10, 180, 30);
     make_inf(eye_r, anim_x_cb,
-             lv_obj_get_x(eye_r)-10, lv_obj_get_x(eye_r)+10, 180, 30);
+             EYE_R_X0-10, EYE_R_X0+10, 180, 30);
     // 手臂交替抖动（打字/写作动作感）
     make_inf(arm_l, anim_y_cb,
-             lv_obj_get_y(arm_l)-4, lv_obj_get_y(arm_l)+4, 120, 120);
+             ARM_Y0-4, ARM_Y0+4, 120, 120);
     make_inf(arm_r, anim_y_cb,
-             lv_obj_get_y(arm_r)+4, lv_obj_get_y(arm_r)-4, 120, 120);
+             ARM_Y0+4, ARM_Y0-4, 120, 120);
 }
 
 // ── 在听：绿色，大睁眼，嘴微张O形，头部前倾点头 ───────────
@@ -711,7 +725,7 @@ static void expr_listening(void)
     lv_obj_set_style_bg_color(mouth_shape, lv_color_hex(0x003300), 0);
     // 头部前后轻点（倾听点头，有节奏感）
     make_inf(robot_root, anim_y_cb,
-             lv_obj_get_y(robot_root)-3, lv_obj_get_y(robot_root)+3, 600, 600);
+             ROBOT_ROOT_Y0-3, ROBOT_ROOT_Y0+3, 600, 600);
     // 天线球柔和脉动（接收信号）
     make_inf(antenna_ball_l, anim_opa_cb, LV_OPA_60, LV_OPA_COVER, 600, 600);
     make_inf(antenna_ball_r, anim_opa_cb, LV_OPA_60, LV_OPA_COVER, 600, 600);
@@ -743,11 +757,11 @@ static void expr_happy(void)
     make_inf(deco_r, anim_opa_cb, LV_OPA_0, LV_OPA_COVER, 450, 450);
     // 机器人整体快乐蹦跳（头+手臂同步跳）
     make_inf(robot_root, anim_y_cb,
-             lv_obj_get_y(robot_root)-6, lv_obj_get_y(robot_root)+2, 350, 350);
+             ROBOT_ROOT_Y0-6, ROBOT_ROOT_Y0+2, 350, 350);
     make_inf(arm_l, anim_y_cb,
-             lv_obj_get_y(arm_l)-5, lv_obj_get_y(arm_l)+2, 350, 350);
+             ARM_Y0-5, ARM_Y0+2, 350, 350);
     make_inf(arm_r, anim_y_cb,
-             lv_obj_get_y(arm_r)-5, lv_obj_get_y(arm_r)+2, 350, 350);
+             ARM_Y0-5, ARM_Y0+2, 350, 350);
     // 天线球欢快闪烁
     make_inf(antenna_ball_l, anim_opa_cb, LV_OPA_40, LV_OPA_COVER, 200, 200);
     make_inf(antenna_ball_r, anim_opa_cb, LV_OPA_COVER, LV_OPA_40, 200, 200);
@@ -771,8 +785,7 @@ static void expr_daydream(void)
     lv_obj_set_style_radius(mouth_shape, 3, 0);
     lv_obj_set_style_bg_color(mouth_shape, lv_color_hex(0x1A2A5A), 0);
     // 整体极慢漂移（心不在焉，飘飘然）
-    make_inf(robot_root, anim_x_cb,
-             lv_obj_get_x(robot_root)-8, lv_obj_get_x(robot_root)+8, 4000, 4000);
+    make_inf(face_screen, anim_x_cb, 0, 16, 4000, 4000);
     // 屏幕边框缓慢呼吸（恍惚感）
     make_inf(face_screen, anim_border_opa_cb, LV_OPA_20, LV_OPA_60, 2500, 2500);
 }
@@ -805,7 +818,7 @@ static void expr_in_love(void)
     make_inf(deco_r, anim_y_cb, 4, -12, 1000, 200);
     // 心跳节奏：快-慢（砰砰~）
     make_inf(robot_root, anim_y_cb,
-             lv_obj_get_y(robot_root)-4, lv_obj_get_y(robot_root)+2, 300, 600);
+             ROBOT_ROOT_Y0-4, ROBOT_ROOT_Y0+2, 300, 600);
     // 天线球粉色呼吸
     make_inf(antenna_ball_l, anim_opa_cb, LV_OPA_50, LV_OPA_COVER, 600, 600);
     make_inf(antenna_ball_r, anim_opa_cb, LV_OPA_50, LV_OPA_COVER, 600, 600);
@@ -830,7 +843,7 @@ static void expr_eating(void)
     make_inf(mouth_shape, anim_h_cb, 3, 9, 250, 250);
     // 头部轻微点头（吃得津津有味）
     make_inf(robot_root, anim_y_cb,
-             lv_obj_get_y(robot_root)-1, lv_obj_get_y(robot_root)+3, 350, 350);
+             ROBOT_ROOT_Y0-1, ROBOT_ROOT_Y0+3, 350, 350);
 }
 
 // ── 健身：荧光绿，眯眼用力，手臂高举，机器人抖动 ─────────
@@ -859,7 +872,7 @@ static void expr_workout(void)
     lv_obj_set_pos(arm_r, 72, 69);
     // 整体高频震动（用力感）
     make_inf(robot_root, anim_y_cb,
-             lv_obj_get_y(robot_root)-2, lv_obj_get_y(robot_root)+2, 90, 90);
+             ROBOT_ROOT_Y0-2, ROBOT_ROOT_Y0+2, 90, 90);
     // 汗水装饰下滑
     lv_obj_set_style_bg_color(deco_r, lv_color_hex(0x44AAFF), 0);
     lv_obj_set_style_radius(deco_r, 4, 0);
@@ -893,9 +906,9 @@ static void expr_studying(void)
     lv_obj_set_style_bg_color(mouth_shape, lv_color_hex(0x224488), 0);
     // 眼睛缓慢左右扫（逐行阅读感）
     make_inf(eye_l, anim_x_cb,
-             lv_obj_get_x(eye_l)-6, lv_obj_get_x(eye_l)+6, 1800, 200);
+             EYE_L_X0-6, EYE_L_X0+6, 1800, 200);
     make_inf(eye_r, anim_x_cb,
-             lv_obj_get_x(eye_r)-6, lv_obj_get_x(eye_r)+6, 1800, 200);
+             EYE_R_X0-6, EYE_R_X0+6, 1800, 200);
     // 屏幕稳定蓝光脉动（沉浸学习感）
     make_inf(face_screen, anim_border_opa_cb, LV_OPA_50, LV_OPA_COVER, 1200, 1200);
 }
@@ -919,9 +932,9 @@ static void expr_watching_tv(void)
     lv_obj_set_style_bg_color(mouth_shape, lv_color_hex(0x1A1A2A), 0);
     // 眼睛偶尔突然左右跳（跟随画面切换）
     make_inf(eye_l, anim_x_cb,
-             lv_obj_get_x(eye_l)-10, lv_obj_get_x(eye_l)+10, 1400, 50);
+             EYE_L_X0-10, EYE_L_X0+10, 1400, 50);
     make_inf(eye_r, anim_x_cb,
-             lv_obj_get_x(eye_r)-10, lv_obj_get_x(eye_r)+10, 1400, 50);
+             EYE_R_X0-10, EYE_R_X0+10, 1400, 50);
     // 屏幕反光闪烁（电视画面投影）
     make_inf(face_screen, anim_opa_cb, LV_OPA_80, LV_OPA_COVER, 1800, 80);
 }
@@ -945,8 +958,7 @@ static void expr_ignoring(void)
     lv_obj_set_style_radius(mouth_shape, 4, 0);
     lv_obj_set_style_bg_color(mouth_shape, lv_color_hex(0x404040), 0);
     // 整体极慢漂移（懒洋洋地不理人）
-    make_inf(robot_root, anim_x_cb,
-             lv_obj_get_x(robot_root)-8, lv_obj_get_x(robot_root)+8, 5000, 5000);
+    make_inf(face_screen, anim_x_cb, 0, 16, 5000, 5000);
     // 屏幕暗淡呼吸（没精打采）
     make_inf(face_screen, anim_border_opa_cb, LV_OPA_20, LV_OPA_50, 2500, 2500);
 }
@@ -974,14 +986,13 @@ static void expr_angry(void)
     lv_obj_set_style_radius(mouth_shape, 0, 0);
     lv_obj_set_style_bg_color(mouth_shape, C_RED, 0);
     // 机器人高频剧烈抖动（愤怒颤抖）
-    make_inf(robot_root, anim_x_cb,
-             lv_obj_get_x(robot_root)-5, lv_obj_get_x(robot_root)+5, 55, 55);
+    make_inf(face_screen, anim_x_cb, 3, 13, 55, 55);
     make_inf(face_screen, anim_border_opa_cb, LV_OPA_60, LV_OPA_COVER, 100, 100);
     // 手臂颤动（愤怒握拳感）
     make_inf(arm_l, anim_y_cb,
-             lv_obj_get_y(arm_l)-2, lv_obj_get_y(arm_l)+2, 55, 55);
+             ARM_Y0-2, ARM_Y0+2, 55, 55);
     make_inf(arm_r, anim_y_cb,
-             lv_obj_get_y(arm_r)-2, lv_obj_get_y(arm_r)+2, 55, 55);
+             ARM_Y0-2, ARM_Y0+2, 55, 55);
 }
 
 // ── 惊讶：黄色边框，超大圆眼，大嘴O形，弹起+叹号 ─────────
@@ -1006,7 +1017,7 @@ static void expr_surprised(void)
     lv_obj_set_style_text_color(exclaim, C_YELLOW, 0);
     // 机器人弹起（吓一跳）
     make_once(robot_root, anim_y_cb,
-              lv_obj_get_y(robot_root), lv_obj_get_y(robot_root)-12, 100, 250);
+              ROBOT_ROOT_Y0, ROBOT_ROOT_Y0-12, 100, 250);
     // 后续持续高速跳动（心还在跳）
     make_inf(face_screen, anim_border_opa_cb, LV_OPA_70, LV_OPA_COVER, 200, 200);
     // 天线球疯狂闪烁（被吓到了）
@@ -1031,14 +1042,14 @@ static void expr_bored(void)
     lv_obj_align(mouth_shape, LV_ALIGN_CENTER, 0, 11);
     // 极慢上下摇晃（精神萎靡，脑袋快撑不住了）
     make_inf(robot_root, anim_y_cb,
-             lv_obj_get_y(robot_root)-1, lv_obj_get_y(robot_root)+4, 5000, 5000);
+             ROBOT_ROOT_Y0-1, ROBOT_ROOT_Y0+4, 5000, 5000);
     // 屏幕极暗（兴趣全无）
     make_inf(face_screen, anim_border_opa_cb, LV_OPA_20, LV_OPA_40, 3000, 3000);
     // 手臂下垂感
     make_inf(arm_l, anim_y_cb,
-             lv_obj_get_y(arm_l), lv_obj_get_y(arm_l)+3, 5000, 5000);
+             ARM_Y0, ARM_Y0+3, 5000, 5000);
     make_inf(arm_r, anim_y_cb,
-             lv_obj_get_y(arm_r), lv_obj_get_y(arm_r)+3, 5000, 5000);
+             ARM_Y0, ARM_Y0+3, 5000, 5000);
 }
 
 // ── 赛博模式：荧光绿，方形眼，高速扫描线，屏幕快闪 ─────────
@@ -1067,8 +1078,7 @@ static void expr_cyber(void)
     make_inf(eye_l, anim_opa_cb, LV_OPA_30, LV_OPA_COVER, 80, 80);
     make_inf(eye_r, anim_opa_cb, LV_OPA_COVER, LV_OPA_30, 80, 80);
     // 头部快速震动（超级计算）
-    make_inf(robot_root, anim_x_cb,
-             lv_obj_get_x(robot_root)-1, lv_obj_get_x(robot_root)+1, 60, 60);
+    make_inf(face_screen, anim_x_cb, 7, 9, 60, 60);
 }
 
 // ── 发晕：黄色，眼睛脉动缩放（模拟螺旋），整体左右大幅晃 ───
@@ -1092,13 +1102,12 @@ static void expr_dizzy(void)
     lv_obj_set_style_radius(mouth_shape, 4, 0);
     lv_obj_align(mouth_shape, LV_ALIGN_CENTER, -2, 11);
     // 整体大幅左右摇晃（站不稳）
-    make_inf(robot_root, anim_x_cb,
-             lv_obj_get_x(robot_root)-10, lv_obj_get_x(robot_root)+10, 220, 220);
+    make_inf(face_screen, anim_x_cb, -2, 18, 220, 220);
     // 手臂跟着晃（站不稳）
     make_inf(arm_l, anim_y_cb,
-             lv_obj_get_y(arm_l)-3, lv_obj_get_y(arm_l)+3, 220, 220);
+             ARM_Y0-3, ARM_Y0+3, 220, 220);
     make_inf(arm_r, anim_y_cb,
-             lv_obj_get_y(arm_r)+3, lv_obj_get_y(arm_r)-3, 220, 220);
+             ARM_Y0+3, ARM_Y0-3, 220, 220);
 }
 
 // ── 害羞：粉色，眼睛往下看，腮红出现，头轻轻往下低 ─────────
@@ -1133,7 +1142,7 @@ static void expr_shy(void)
     make_inf(deco_r, anim_opa_cb, LV_OPA_30, LV_OPA_70, 1000, 1000);
     // 头部微微低下（害羞低头）
     make_inf(robot_root, anim_y_cb,
-             lv_obj_get_y(robot_root), lv_obj_get_y(robot_root)+3, 1500, 1500);
+             ROBOT_ROOT_Y0, ROBOT_ROOT_Y0+3, 1500, 1500);
     // 天线球粉色微光
     make_inf(antenna_ball_l, anim_opa_cb, LV_OPA_40, LV_OPA_COVER, 1200, 1200);
     make_inf(antenna_ball_r, anim_opa_cb, LV_OPA_40, LV_OPA_COVER, 1200, 1200);
@@ -1161,11 +1170,11 @@ static void expr_excited(void)
     make_inf(eye_r, anim_opa_cb, LV_OPA_COVER, LV_OPA_60, 120, 120);
     // 整体高频大幅弹跳（真的压制不住）
     make_inf(robot_root, anim_y_cb,
-             lv_obj_get_y(robot_root)-8, lv_obj_get_y(robot_root)+4, 180, 180);
+             ROBOT_ROOT_Y0-8, ROBOT_ROOT_Y0+4, 180, 180);
     make_inf(arm_l, anim_y_cb,
-             lv_obj_get_y(arm_l)-6, lv_obj_get_y(arm_l)+6, 160, 160);
+             ARM_Y0-6, ARM_Y0+6, 160, 160);
     make_inf(arm_r, anim_y_cb,
-             lv_obj_get_y(arm_r)+6, lv_obj_get_y(arm_r)-6, 160, 160);
+             ARM_Y0+6, ARM_Y0-6, 160, 160);
     // 天线球疯狂闪烁（发射兴奋信号）
     make_inf(antenna_ball_l, anim_opa_cb, LV_OPA_0, LV_OPA_COVER, 100, 100);
     make_inf(antenna_ball_r, anim_opa_cb, LV_OPA_COVER, LV_OPA_0, 100, 100);
@@ -1194,6 +1203,12 @@ static void update_state_display(lcd_state_t state)
     stop_all_anims();
     hide_all_decorations();
     reset_face();
+
+    // 复位 robot_root 到初始位置（防止动画残留漂移）
+    if (robot_root) lv_obj_align(robot_root, LV_ALIGN_TOP_MID, 0, ROBOT_ROOT_Y0);
+    // 复位手臂
+    if (arm_l) lv_obj_set_pos(arm_l, 0,  ARM_Y0);
+    if (arm_r) lv_obj_set_pos(arm_r, 72, ARM_Y0);
 
     // 恢复屏幕背景色
     lv_obj_set_style_bg_color(face_screen, C_SCREEN_BG, 0);
@@ -1366,7 +1381,7 @@ void lcd_stream_append(const char *chunk)
     if (lvgl_port_lock(200)) {
         if (stream_label) {
             lv_label_set_text(stream_label, stream_buf);
-            lv_obj_scroll_to_view_recursive(stream_label, LV_ANIM_OFF);
+            lv_obj_scroll_to_y(mouth_area, LV_COORD_MAX, LV_ANIM_OFF);
         }
         lvgl_port_unlock();
     }
@@ -1520,8 +1535,8 @@ static void setup_ui(void)
 
     // ── 对话区 ──────────────────────────────────────────────
     mouth_area = lv_obj_create(screen);
-    lv_obj_set_size(mouth_area, LCD_H_RES - 16, LCD_V_RES - 132 - 26);
-    lv_obj_align(mouth_area, LV_ALIGN_TOP_MID, 0, 136);
+    lv_obj_set_size(mouth_area, LCD_H_RES - 8, LCD_V_RES - 132 - 22);
+    lv_obj_align(mouth_area, LV_ALIGN_TOP_MID, 0, 134);
     lv_obj_set_style_bg_color(mouth_area, C_MOUTH_BG, 0);
     lv_obj_set_style_bg_opa(mouth_area, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(mouth_area, 8, 0);
@@ -1531,6 +1546,7 @@ static void setup_ui(void)
     lv_obj_set_style_pad_all(mouth_area, 5, 0);
     lv_obj_set_scrollbar_mode(mouth_area, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_scroll_dir(mouth_area, LV_DIR_VER);
+    lv_obj_add_flag(mouth_area, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_flex_flow(mouth_area, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(mouth_area, LV_FLEX_ALIGN_START,
                           LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
