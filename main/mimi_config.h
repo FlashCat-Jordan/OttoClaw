@@ -91,7 +91,7 @@
 #define MIMI_SPIFFS_BASE             "/spiffs"
 #define MIMI_SPIFFS_CONFIG_DIR       "/spiffs/config"
 #define MIMI_SPIFFS_MEMORY_DIR       "/spiffs/memory"
-#define MIMI_SPIFFS_SESSION_DIR      "/spiffs/sessions"
+#define MIMI_SPIFFS_SESSION_DIR      "/spiffs"
 #define MIMI_SPIFFS_AGENTS_DIR       "/spiffs/agents"
 #define MIMI_SPIFFS_SKILLS_DIR       "/spiffs/skills"
 #define MIMI_MEMORY_FILE             "/spiffs/memory/MEMORY.md"

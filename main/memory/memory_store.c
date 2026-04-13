@@ -6,6 +6,8 @@
 #include <time.h>
 #include <sys/stat.h>
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 static const char *TAG = "memory";
 
@@ -89,6 +91,9 @@ esp_err_t memory_read_recent(char *buf, size_t size, int days)
 
         char path[64];
         snprintf(path, sizeof(path), "%s/%s.md", MIMI_SPIFFS_MEMORY_DIR, date_str);
+
+        /* Yield before each SPIFFS open to let IDLE task feed the watchdog */
+        vTaskDelay(pdMS_TO_TICKS(10));
 
         FILE *f = fopen(path, "r");
         if (!f) continue;

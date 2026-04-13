@@ -156,7 +156,12 @@
     </div>
 
     <script>
-        const chatId = 'web_' + Math.random().toString(36).substr(2, 9);
+        // Persist chatId across page refreshes so session history is preserved
+        let chatId = localStorage.getItem('mimi_chat_id');
+        if (!chatId) {
+            chatId = 'web_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('mimi_chat_id', chatId);
+        }
         let ws = null;
         let reconnectTimer = null;
         

@@ -6,6 +6,7 @@
 #include "memory/session_mgr.h"
 #include "tools/tool_registry.h"
 #include "lcd/lcd_display.h"
+#include "esp_task_wdt.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -174,6 +175,12 @@ static void agent_loop_task(void *arg)
 {
     ESP_LOGI(TAG, "Agent loop started on core %d", xPortGetCoreID());
 
+    /* Unsubscribe this task from the task watchdog — the agent loop
+     * makes long-running HTTP calls (LLM + web search) that can take
+     * 30-120s and would otherwise trigger spurious WDT resets */
+    esp_task_wdt_delete(xTaskGetCurrentTaskHandle());
+    esp_task_wdt_delete(NULL);  /* also remove current task handle alias */
+
     /* Allocate large buffers from PSRAM */
     char *system_prompt = heap_caps_calloc(1, MIMI_CONTEXT_BUF_SIZE, MALLOC_CAP_SPIRAM);
     char *history_json = heap_caps_calloc(1, MIMI_LLM_STREAM_BUF_SIZE, MALLOC_CAP_SPIRAM);
@@ -209,6 +216,10 @@ static void agent_loop_task(void *arg)
         cJSON_AddStringToObject(user_msg, "role", "user");
         cJSON_AddStringToObject(user_msg, "content", msg.content);
         cJSON_AddItemToArray(messages, user_msg);
+
+        /* Save user message NOW before LLM call — ensures context survives
+         * even if LLM fails, times out, or WDT fires mid-call */
+        session_append(msg.chat_id, "user", msg.content);
 
         lcd_set_state(LCD_STATE_THINKING);
         lcd_show_chat_message("user", msg.content);
@@ -263,8 +274,7 @@ static void agent_loop_task(void *arg)
             chat_mood = choose_base_mood(msg.content, final_text);
             lcd_set_base_mood(chat_mood);
 
-            /* Save to session (only user text + final assistant text) */
-            session_append(msg.chat_id, "user", msg.content);
+            /* Save assistant reply to session */
             session_append(msg.chat_id, "assistant", final_text);
 
             lcd_set_state(LCD_STATE_SPEAKING);
