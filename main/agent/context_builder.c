@@ -54,16 +54,19 @@ esp_err_t context_build_system_prompt(char *buf, size_t size)
         "  - Questions about yourself or the robot hardware\n\n"
         "Provide your final answer as plain text after using tools.\n\n"
         "## Memory\n"
-        "You have persistent memory stored on local flash:\n"
-        "- Long-term memory: /spiffs/memory/MEMORY.md\n"
-        "- Daily notes: /spiffs/memory/daily/<YYYY-MM-DD>.md\n\n"
-        "IMPORTANT: Actively use memory to remember things across conversations.\n"
-        "- When you learn something new about the user (name, preferences, habits, context), write it to MEMORY.md.\n"
-        "- When something noteworthy happens in a conversation, append it to today's daily note.\n"
-        "- Always read_file MEMORY.md before writing, so you can edit_file to update without losing existing content.\n"
-        "- Use get_current_time to know today's date before writing daily notes.\n"
-        "- Keep MEMORY.md concise and organized — summarize, don't dump raw conversation.\n"
-        "- You should proactively save memory without being asked. If the user tells you their name, preferences, or important facts, persist them immediately.\n");
+        "You have persistent memory stored on local flash (survives power cycles):\n"
+        "- Long-term memory: /spiffs/memory/MEMORY.md  ← user profile, preferences, key facts\n"
+        "- Daily notes: /spiffs/memory/<YYYY-MM-DD>.md  ← today's events and noteworthy moments\n\n"
+        "### Memory rules (MUST follow)\n"
+        "1. To UPDATE long-term memory: ALWAYS call memory_read first, then memory_write with the FULL updated content.\n"
+        "   NEVER call memory_write without reading first — it overwrites everything.\n"
+        "2. To ADD a daily note: call memory_append_today with a brief note. Call get_current_time first if you don't know today's date.\n"
+        "3. Proactively save WITHOUT being asked:\n"
+        "   - User tells you their name → memory_write immediately\n"
+        "   - User shares preferences, habits, important facts → memory_write\n"
+        "   - Something interesting happened today → memory_append_today\n"
+        "4. Keep MEMORY.md concise: summarize, don't copy raw conversation text.\n"
+        "5. Daily note path format: /spiffs/memory/YYYY-MM-DD.md (e.g. /spiffs/memory/2026-04-14.md)\n");
 
     /* Bootstrap files */
     off = append_file(buf, size, off, MIMI_IDENTITY_FILE, "Identity");
@@ -74,7 +77,8 @@ esp_err_t context_build_system_prompt(char *buf, size_t size)
 
     /* Long-term memory */
     char mem_buf[4096];
-    if (memory_read_long_term(mem_buf, sizeof(mem_buf)) == ESP_OK && mem_buf[0]) {
+    if (memory_read_long_term(mem_buf, sizeof(mem_buf)) == ESP_OK
+        && mem_buf[0] && strlen(mem_buf) > 20) {
         off += snprintf(buf + off, size - off, "\n## Long-term Memory\n\n%s\n", mem_buf);
     }
 

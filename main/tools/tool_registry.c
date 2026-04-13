@@ -11,7 +11,17 @@
 
 static const char *TAG = "tools";
 
-#define MAX_TOOLS 10
+#define MAX_TOOLS 16
+
+static esp_err_t tool_memory_read_execute(const char *input_json, char *output, size_t output_size)
+{
+    (void)input_json;
+    esp_err_t err = memory_read_long_term(output, output_size);
+    if (err == ESP_ERR_NOT_FOUND || output[0] == '\0') {
+        snprintf(output, output_size, "(MEMORY.md is empty)");
+    }
+    return ESP_OK;
+}
 
 static esp_err_t tool_memory_write_execute(const char *input_json, char *output, size_t output_size)
 {
@@ -185,6 +195,18 @@ esp_err_t tool_registry_init(void)
         .execute = tool_list_dir_execute,
     };
     tool_registry_register(&ld);
+
+    /* Register memory_read */
+    mimi_tool_t mr = {
+        .name = "memory_read",
+        .description = "Read the current contents of long-term memory (MEMORY.md). ALWAYS call this before memory_write to avoid overwriting existing memories.",
+        .input_schema_json =
+            "{\"type\":\"object\","
+            "\"properties\":{},"
+            "\"required\":[]}",
+        .execute = tool_memory_read_execute,
+    };
+    tool_registry_register(&mr);
 
     /* Register memory_write */
     mimi_tool_t mw = {
