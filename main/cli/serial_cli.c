@@ -334,11 +334,11 @@ esp_err_t serial_cli_init(void)
     repl_config.prompt = "mimi> ";
     repl_config.max_cmdline_length = 256;
 
-    /* USB Serial JTAG */
-    esp_console_dev_usb_serial_jtag_config_t hw_config =
-        ESP_CONSOLE_DEV_USB_SERIAL_JTAG_CONFIG_DEFAULT();
+    /* UART console (works with and without USB) */
+    esp_console_dev_uart_config_t hw_config =
+        ESP_CONSOLE_DEV_UART_CONFIG_DEFAULT();
 
-    ESP_ERROR_CHECK(esp_console_new_repl_usb_serial_jtag(&hw_config, &repl_config, &repl));
+    ESP_ERROR_CHECK(esp_console_new_repl_uart(&hw_config, &repl_config, &repl));
 
     /* Register commands */
     esp_console_register_help_command();

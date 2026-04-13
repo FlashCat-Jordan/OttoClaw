@@ -35,8 +35,8 @@ CONFIG_HTTPD_WS_SUPPORT=y
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 
-# Console/UART for CLI
-CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+# Console/UART for CLI - use UART0 so board boots without USB
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
 
 # LVGL configuration - minimal for memory saving
 CONFIG_LV_USE_FLEX=y

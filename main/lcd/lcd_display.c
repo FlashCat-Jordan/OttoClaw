@@ -14,6 +14,7 @@
 #include "esp_timer.h"
 #include "driver/spi_master.h"
 #include "driver/gpio.h"
+#include "driver/ledc.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_panel_vendor.h"
@@ -156,9 +157,32 @@ static uint32_t mood_ticks = 0;
 //  工具函数
 // ═══════════════════════════════════════════════════════════
 
+static void bl_ledc_init(void)
+{
+    ledc_timer_config_t t = {
+        .speed_mode      = LEDC_LOW_SPEED_MODE,
+        .duty_resolution = LEDC_TIMER_10_BIT,
+        .timer_num       = LEDC_TIMER_0,
+        .freq_hz         = 20000,
+        .clk_cfg         = LEDC_AUTO_CLK,
+    };
+    ledc_timer_config(&t);
+
+    ledc_channel_config_t c = {
+        .gpio_num   = PIN_BL,
+        .speed_mode = LEDC_LOW_SPEED_MODE,
+        .channel    = LEDC_CHANNEL_0,
+        .timer_sel  = LEDC_TIMER_0,
+        .duty       = 0,
+        .hpoint     = 0,
+    };
+    ledc_channel_config(&c);
+}
+
 void lcd_backlight_set(bool on)
 {
-    gpio_set_level(PIN_BL, on ? 1 : 0);
+    ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, on ? 1023 : 0);
+    ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
 }
 
 static void stop_all_anims(void)
@@ -1588,11 +1612,7 @@ esp_err_t lcd_display_init(void)
 {
     ESP_LOGI(TAG, "Initializing LCD with LVGL (ST7789 240x240)");
 
-    gpio_config_t bk_gpio = {
-        .mode = GPIO_MODE_OUTPUT,
-        .pin_bit_mask = 1ULL << PIN_BL
-    };
-    ESP_ERROR_CHECK(gpio_config(&bk_gpio));
+    bl_ledc_init();
     lcd_backlight_set(false);
 
     spi_bus_config_t buscfg = {
