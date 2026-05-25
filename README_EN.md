@@ -96,7 +96,7 @@ OttoClaw: "Your interview was last week — how's the new job going?"
 | **Emotions** | greeting · shy | direction, steps |
 | **Routines** | radio_calisthenics · magic_circle · showcase | — |
 
-> **Lite note:** Open-source edition has 22 predefined action primitives. AI orchestrates sequences via ReAct loop. Full Servo Sequences (arbitrary servo angle + timeline custom choreography) coming in future releases.
+> **Lite note:** Open-source Lite edition provides 22 predefined action primitives. AI orchestrates sequences via ReAct loop. The low-level arbitrary servo position control (`otto_move_servos`) already exists — full Servo Sequences tool interface (AI-defined custom angle + timeline choreography) will ship in the official release, with self-programming capability for more AI-conscious physical expression.
 
 ---
 

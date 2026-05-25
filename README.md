@@ -96,7 +96,7 @@ OttoClaw: "上周你面试通过了，新工作适应得怎么样？"
 | **情绪** | `greeting` / `shy` | 打招呼、害羞 | direction, steps |
 | **套路** | `radio_calisthenics` / `magic_circle` / `showcase` | 广播体操、转圈圈、全套表演 | — |
 
-> **Lite 版说明：** 开源版本提供 22 个预定义动作原语，AI 通过 ReAct 循环自主编排动作序列。完整的 Servo Sequences 能力（任意舵机角度+时间序列的自定义编排）将在后续版本推出。
+> **Lite 版说明：** 开源 Lite 版提供 22 个预定义动作原语，AI 通过 ReAct 循环自主编排动作序列。底层已具备任意舵机位置控制能力（`otto_move_servos`），完整的 Servo Sequences 工具接口（AI 自定义任意角度+时间序列编排）将在正式版推出，融合自编程能力，实现更多 AI 意识的物理化表达。
 
 ---
 
