@@ -68,13 +68,13 @@ USB powered, pure C / FreeRTOS, single ESP32-S3. No Linux, no Node.js, no bloate
 
 ### Fully Open-Source Hardware
 
-This firmware runs on the **Shanmao-1 OttoRobot AI Edition official dev board**. Hardware is also fully open-source:
+This firmware runs on the **Shanmao official dev board**. Hardware is also open-source, or purchase directly:
 
-- **PCB + BOM** — One-click order on LCSC open hardware platform: [oshwhub.com/txp666/ottorobot](https://oshwhub.com/txp666/ottorobot)
-- **3D-printed shell** — Free STL downloads at [MakerWorld @shanmaotech](https://makerworld.com.cn/@shanmaotech)
-- **Complete assembly guide** — From parts procurement to soldering, assembly, and flashing — 30 minutes to complete: [ottodiy.tech](https://ottodiy.tech)
-
-Full hardware documentation (9 chapters: product intro, capability comparison, parts guide, soldering tutorial, assembly guide, flashing guide, usage guide, remix projects, FAQ) at [Shanmao Open Robot Ecosystem](https://shanmaotech.cn/ottodiy/)
+- **Official dev board — one-click purchase** — [Shanmao Robot Official Store](https://m.tb.cn/h.SRXKaIT7OtBRrpQ)
+- **DIY kit (all components included, pre-flashed, 40 min assembly)** — [Shanmao Robot DIY Kit](https://e.tb.cn/h.SRfKOWrlDXV4kQR?tk=atRsf1poxdZ)
+- **PCB + BOM open-source files** — Self-manufacturing also possible: [LCSC Open Hardware](https://oshwhub.com/txp666/ottorobot)
+- **3D-printed shell STL files** — [MakerWorld @shanmaotech](https://makerworld.com.cn/@shanmaotech)
+- **Complete assembly & usage guide** — [ottodiy.tech](https://ottodiy.tech)
 
 ---
 

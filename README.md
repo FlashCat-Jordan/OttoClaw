@@ -78,13 +78,13 @@ OttoClaw 不锁定任何平台，所有配置完全开放：
 
 ### 硬件全栈开源
 
-本固件可运行于 **闪猫一号 OttoRobot AI 版官方开发板**。硬件部分同样开源：
+本固件可运行于 **闪猫官方开发板**。硬件部分同样开源，也可直接购买官方成品：
 
-- **PCB + BOM** — 立创开源硬件平台一键下单：[oshwhub.com/txp666/ottorobot](https://oshwhub.com/txp666/ottorobot)
-- **3D 打印外壳** — STL 文件免费下载：[MakerWorld @shanmaotech](https://makerworld.com.cn/@shanmaotech)
-- **完整组装教程** — 从元器件采购到焊接、组装、烧录，30 分钟即可完成：[ottodiy.tech](https://ottodiy.tech)
-
-全套硬件开源文档（9 个章节：产品介绍、能力对比、采购指南、焊接教程、组装教程、烧录指南、使用说明、二次创作、常见问题）详见 [闪猫侠机器人开源生态](https://shanmaotech.cn/ottodiy/)。
+- **官方开发板一键下单** — [闪猫侠机器人旗舰店](https://m.tb.cn/h.SRXKaIT7OtBRrpQ)
+- **DIY 套件（含全部组件，已烧录固件，40 分钟组装）** — [闪猫侠机器人 DIY 套件](https://e.tb.cn/h.SRfKOWrlDXV4kQR?tk=atRsf1poxdZ)
+- **PCB + BOM 开源文件** — 自己制作亦可：[立创开源硬件](https://oshwhub.com/txp666/ottorobot)
+- **3D 打印外壳 STL 文件** — [MakerWorld @shanmaotech](https://makerworld.com.cn/@shanmaotech)
+- **完整组装与使用教程** — [ottodiy.tech](https://ottodiy.tech)
 
 ---
 
