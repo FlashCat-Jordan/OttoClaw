@@ -6,7 +6,7 @@
 
 > Every robot talks to you. OttoClaw never interrupts.
 > It quietly messages you through DingTalk — greet it, command it, make it dance.
-> AI truly controls the body: 6 servos, 22 actions, self-orchestrated.
+> AI truly controls the body: 6 servos, every joint precisely controllable, self-orchestrated.
 
 Developed by **Shanmao Tech** · Open-source Lite edition
 
@@ -18,9 +18,9 @@ All companion robots use voice — they speak, they play audio, they break your 
 
 **OttoClaw takes a completely different path:**
 
-- **Non-intrusive** — Interacts through DingTalk / Feishu messages. Quiet like a cat. No sudden voice during your meeting. Check messages when free, send commands anytime.
-- **AI is the soul, not a remote** — Not just "wave when I say wave". The LLM decides autonomously what motion, expression, and words to use. Say "dance for me" — AI choreographs: walk → wave → moonwalk → calisthenics → windmill → finish. Every routine is AI's own composition, not your script.
-- **Self-orchestrated actions** — 22 primitives, AI chains them freely via ReAct loop. Same "dance" request can produce different choreography each time. True AI body control.
+- **Non-intrusive** — Messages through DingTalk / Feishu. Quiet like a cat. No sudden voice during your meeting. Check messages when free, send commands anytime.
+- **AI is the soul, not a remote** — Not just "wave when I say wave". The LLM decides autonomously what motion, expression, and words. Say "dance" — AI choreographs: walk → wave → moonwalk → calisthenics → windmill → finish. Each routine is AI's own composition.
+- **Precise joint control** — Beyond 22 predefined actions, AI can directly specify any servo angle. "Left hand to 45 degrees, right foot to 120 degrees" — it reaches that position exactly. 6 joints, 6 independent servos, AI can freely compose pose sequences.
 - **6-servo full body** — Hands + legs + feet = 6 independent joints. Walk, turn, jump, sit, bend, wave, moonwalk, calisthenics, windmill, shy, fitness... each tunable: steps, speed, direction, amount.
 - **0.5W always-on** — USB power, pure C / FreeRTOS, one ESP32-S3. 24/7, zero maintenance.
 
@@ -30,11 +30,11 @@ All companion robots use voice — they speak, they play audio, they break your 
 
 ### Chat
 
-Message it on DingTalk — anything goes. Weather, news, code, stories, reminders. It searches the web, reads/writes files, remembers things.
+Message on DingTalk — anything goes. Weather, news, code, stories, reminders. It searches the web, reads/writes files, remembers things.
 
 ```
-You: "What's the weather in Hangzhou today?"
-OttoClaw: [web_search] → "Hangzhou: sunny, 28°C — perfect for a walk out"
+You: "Weather in Hangzhou today?"
+OttoClaw: [web_search] → "Hangzhou: sunny, 28°C — nice day for a walk"
 ```
 
 ### Make It Dance
@@ -43,159 +43,197 @@ One sentence, AI choreographs the whole routine:
 
 ```
 You: "dance for me"
-OttoClaw: → walk 3 steps → moonwalk → radio_calisthenics → swing → showcase → "Done dancing!"
+OttoClaw: → walk 3 → moonwalk → radio_calisthenics → swing → showcase → "Done dancing!"
+```
+
+### Precise Pose Control (Servo Sequences Lite)
+
+New Lite capability — tell AI exactly where each joint should go:
+
+```
+You: "left hand to 160 degrees, right foot to 30 degrees"
+OttoClaw: [self.otto.pose] → left hand 160° right foot 30° → "Pose achieved!"
 ```
 
 ```
-You: "be shy"
-OttoClaw: → shy (head down + cover face + tiny tremble) → "Ohhh, so embarrassed~"
+You: "think for a moment"
+OttoClaw: [self.otto.pose] → right hand 45° foot tilted → then reset → "Let me think..."
 ```
 
-```
-You: "do some fitness"
-OttoClaw: → sit → fitness (sit down + raise arms + stretch) → "Fitness time!"
-```
+AI chains multiple pose calls into a sequence — head down → thinking → head up → answer. Each transition has controllable timing.
 
-### Make It Perform
-
-Full routines, one call:
-
-- **Radio calisthenics** — 8 full sections, arms+legs+side+bend, better form than you
-- **Showcase** — walk → wave → calisthenics → moonwalk → swing → takeoff → fitness → backward → grand finale
-- **Magic circle** — 40 seconds of spinning joy, all 6 joints rotating together
-- **Windmill** — both arms spinning like a windmill
-- **Takeoff** — arms flapping up and down, simulating flight
+> **Lite note:** Open-source Lite edition provides Servo Sequences Lite — AI can specify any servo angle and compose pose sequences via multiple pose calls. Full Servo Sequences release (with self-programming capability for more AI-conscious physical expression) will come later.
 
 ### Live With It
 
-OttoClaw remembers. Your preferences, your stories, your daily events. Across restarts:
+OttoClaw remembers across restarts:
 
 ```
 You: "Remember I love hotpot"
-OttoClaw: [memory_write] → "Noted! Will suggest hotpot places next time"
+OttoClaw: [memory_write] → "Noted!"
 
 You: "I passed my interview today!"
-OttoClaw: [memory_append_today] → "Congrats! Logged in today's notes"
+OttoClaw: [memory_append_today] → "Congrats! Logged."
 
 (Days later)
-OttoClaw: "Your interview was last week — how's the new job going?"
+OttoClaw: "Your interview was last week — how's the new job?"
 ```
 
 ---
 
-## Action List (Lite · 22 Primitives)
+## Actions
 
-| Category | Actions | Params |
-|----------|---------|--------|
-| **Walking** | walk · walk_backward · turn | steps, speed, direction, amount |
-| **Jumping** | jump · updown | steps, speed, amount |
-| **Grooving** | swing · moonwalk | steps, speed, amount, direction |
-| **Poses** | sit · bend · shake_leg · home | steps, speed, direction |
-| **Hands** | hands_up · hands_down · hand_wave | speed, direction |
-| **Flashy** | windmill · takeoff · fitness | steps, speed, amount |
-| **Emotions** | greeting · shy | direction, steps |
-| **Routines** | radio_calisthenics · magic_circle · showcase | — |
+### Predefined (22 primitives)
 
-> **Lite note:** Open-source Lite edition provides 22 predefined action primitives. AI orchestrates sequences via ReAct loop. The low-level arbitrary servo position control (`otto_move_servos`) already exists — full Servo Sequences tool interface (AI-defined custom angle + timeline choreography) will ship in the official release, with self-programming capability for more AI-conscious physical expression.
+walk · walk_backward · turn · jump · updown · swing · moonwalk · bend · shake_leg · sit · hands_up · hands_down · hand_wave · windmill · takeoff · fitness · greeting · shy · radio_calisthenics · magic_circle · showcase · home
 
----
+Each tunable with steps, speed, direction, amount.
 
-## Interaction
+### Precise Pose (Servo Sequences Lite)
 
-- **DingTalk** — Quiet companion. Stream mode, no server needed. Set App Key + Secret, done.
-- **WebSocket** — Port 18789. Chat at `http://<ip>:18789`, settings at `/settings.html`
-- **Serial CLI** — `oc>` prompt via USB for config/debug
+`self.otto.pose` — AI specifies 6 servo angles + transition time:
+
+| Param | Description | Range | Default |
+|-------|-------------|-------|---------|
+| `left_leg` | Left leg servo angle | 0-180 | 90 |
+| `right_leg` | Right leg servo angle | 0-180 | 90 |
+| `left_foot` | Left foot servo angle | 0-180 | 90 |
+| `right_foot` | Right foot servo angle | 0-180 | 90 |
+| `left_hand` | Left hand servo angle | 0-180 | 45 |
+| `right_hand` | Right hand servo angle | 0-180 | 135 |
+| `time` | Transition time (ms) | 100-3000 | 700 |
+
+90° = neutral. 45°/135° = natural hand rest. Lower angles = one side, higher = the other.
 
 ---
 
 ## Quick Start
 
+### Prerequisites
+
+- ESP32-S3 board (16MB Flash + 8MB PSRAM)
+- Otto 6-servo robot kit
+- USB Type-C **data** cable
+- LLM API key
+
+### Install ESP-IDF
+
 ```bash
-# ESP-IDF v5.5+ first: https://docs.espressif.com/projects/esp-idf/en/v5.5.2/esp32s3/get-started/
+git clone -b v5.5.2 --depth 1 https://github.com/espressif/esp-idf.git ~/esp/esp-idf
+cd ~/esp/esp-idf && ./install.sh esp32s3
+source ~/esp/esp-idf/export.sh   # Run this before every build
+```
+
+### Build & Flash
+
+```bash
 git clone https://github.com/1335328414/FlashCatClaw.git
 cd FlashCatClaw/mimiclaw-main
 cp main/ottoclaw_secrets.h.example main/ottoclaw_secrets.h
 idf.py set-target esp32s3 && idf.py build && idf.py -p PORT flash
 ```
 
-No WiFi → auto portal mode. Connect to `OttoClaw-XXXX`, open `http://192.168.4.1`. Configure everything in the web UI. Hold **BOOT 2s** to re-enter.
+### First Config
+
+No WiFi → auto portal mode. Connect phone to `OttoClaw-XXXX` hotspot → open http://192.168.4.1 → fill in settings → Save & Reboot.
+
+Re-enter portal anytime: **hold BOOT button 2s** during startup.
 
 ---
 
-## Config
+## Configuration Guide
 
-Two layers: compile-time defaults (`ottoclaw_secrets.h`) + runtime overrides (NVS, portal/CLI). Runtime wins.
+Two layers: compile-time defaults (`ottoclaw_secrets.h`) + runtime overrides (NVS/portal/CLI). Runtime wins.
 
-### LLM
+### WiFi
 
-| Provider | Value | One-liner |
-|----------|-------|-----------|
-| Anthropic (Claude) | `anthropic` | Default, world-class |
-| Qwen (DashScope) | `qwen` | Direct connect in China, no proxy |
-| OpenAI (GPT) | `openai` | Classic |
-| DeepSeek | `deepseek` | Best value |
-| Gemini | `gemini` | Google |
-| Groq | `groq` | Speed ceiling |
+**Portal:** Enter SSID + password → Save & Reboot.
+
+**CLI:** `oc> wifi_set SSID PASSWORD && oc> restart`
+
+Auto-fallback to portal mode if WiFi fails — no worries if you misconfigure.
+
+### LLM (the key config)
+
+**Anthropic Claude (default, needs proxy in China):**
+
+1. [Anthropic Console](https://console.anthropic.com/) → Create API Key
+2. `oc> set_model_provider anthropic && oc> set_model claude-sonnet-4-5 && oc> set_api_key sk-ant-api03-xxxxx`
+
+**Qwen/DashScope (recommended for China, no proxy needed):**
+
+1. [DashScope Console](https://dashscope.console.aliyun.com/) → Enable service → Create API Key
+2. `oc> set_model_provider qwen && oc> set_model qwen-max && oc> set_api_key sk-xxxxx`
+
+**DeepSeek (China, no proxy, good value):**
+
+1. [DeepSeek Platform](https://platform.deepseek.com/) → Create API Key
+2. `oc> set_model_provider deepseek && oc> set_model deepseek-chat && oc> set_api_key sk-xxxxx`
+
+| Provider | Value | Note |
+|----------|-------|------|
+| OpenAI | `openai` | Classic, needs proxy |
+| Gemini | `gemini` | Google, needs proxy |
+| Groq | `groq` | Fastest inference |
 | Zhipu (GLM) | `zhipu` | Strong Chinese |
-| vLLM | `vllm` | Self-hosted, needs base_url |
-
-```
-oc> set_model_provider qwen && oc> set_model qwen-max && oc> set_api_key sk-xxxxx
-```
+| vLLM | `vllm` | Self-hosted |
 
 ### DingTalk
 
-[Open platform](https://open-dev.dingtalk.com/) → create app → robot → get App Key + Secret → enable Stream mode.
+1. [DingTalk Developer Platform](https://open-dev.dingtalk.com/) → Create app → Robot type
+2. Copy **App Key** and **App Secret**
+3. **Important:** Set message receiving mode to **Stream** (not HTTP callback)
+4. `oc> set_dingtalk dingxxxx secretxxx`
 
-`oc> set_dingtalk dingxxxx secretxxx`
+Stream mode = direct WebSocket connection to DingTalk. No public server needed.
 
-### Search
+### Web Search
 
-[Bailian platform](https://bailian.console.aliyun.com/) → create search-enhanced app → get App ID + API Key.
+1. [Bailian Platform](https://bailian.console.aliyun.com/) → Create app → Search-enhanced type
+2. Copy **App ID** and **API Key**
+3. `oc> set_search_key sk-xxxxx && oc> set_bailian_app_id 758d9af4...`
 
-`oc> set_search_key sk-xxxxx && oc> set_bailian_app_id 758d9af4...`
+### Proxy (for Claude/OpenAI in China)
 
-### Proxy (China users)
+`oc> set_proxy 192.168.1.83 7897` (Clash/V2Ray HTTP port)
 
-`oc> set_proxy 192.168.1.83 7897 && oc> clear_proxy` (Clash/V2Ray HTTP port)
+`oc> clear_proxy` to remove
 
 ---
 
 ## CLI
+
+USB serial, 115200 baud, `oc>` prompt:
 
 ```
 oc> wifi_set <ssid> <pass>      oc> set_dingtalk <key> <secret>
 oc> set_api_key <key>           oc> set_model <model>
 oc> set_model_provider <p>      oc> set_bailian_app_id <id>
 oc> set_search_key <key>        oc> set_proxy <host> <port>
-oc> config_show                 oc> config_reset
+oc> clear_proxy                 oc> config_show
+oc> config_reset                oc> restart
+oc> wifi_status                 oc> wifi_scan
 oc> memory_read                 oc> memory_write "content"
-oc> heap_info                   oc> restart
+oc> heap_info                   oc> session_list
 ```
 
 ---
 
 ## Memory
 
-All data stored as plain text on SPIFFS. AI reads/writes:
+All data as plain text on SPIFFS. AI reads/writes:
 
-- `SOUL.md` — Who it is, personality
-- `USER.md` — What it knows about you
-- `MEMORY.md` — Long-term memory (cross-session)
+- `SOUL.md` — Personality
+- `USER.md` — User preferences
+- `MEMORY.md` — Long-term memory
 - `YYYY-MM-DD.md` — Daily auto-notes
 - `<chat_id>.jsonl` — Chat history
-
-Say "remember I love hotpot" → writes to `MEMORY.md` → later asks "hotpot place nearby?" That's companionship.
 
 ---
 
 ## Architecture
 
-- **Pure C / FreeRTOS** — No Linux, no Python, one ESP32-S3
-- **Dual-core** — Core 0 network, Core 1 agent
-- **Anthropic-style tool use** — ReAct loop, AI decides tool calls
-- **SPIFFS local** — Memory, sessions, config, skills — all on device
-- **6 servo LEDC PWM** — Independent joint control, oscillator-driven smooth motion
+Pure C / FreeRTOS · Dual-core (Core 0 I/O, Core 1 agent) · Anthropic tool use ReAct loop · SPIFFS local storage · 6 servo LEDC PWM
 
 **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** · **[docs/TODO.md](docs/TODO.md)**
 
@@ -207,4 +245,4 @@ MIT
 
 ## Acknowledgments
 
-Inspired by [mimiclaw](https://github.com/memovai/mimiclaw), [OpenClaw](https://github.com/openclaw/openclaw), and [Nanobot](https://github.com/HKUDS/nanobot). We took the AI Agent architecture to embedded hardware and made it an embodied, playful device experience.
+Inspired by [mimiclaw](https://github.com/memovai/mimiclaw), [OpenClaw](https://github.com/openclaw/openclaw), and [Nanobot](https://github.com/HKUDS/nanobot).

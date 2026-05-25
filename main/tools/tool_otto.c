@@ -156,16 +156,86 @@ static const char *otto_tool_schema =
     "\"required\":[\"action\"]"
     "}";
 
+static const char *otto_pose_schema =
+    "{\"type\":\"object\","
+    "\"properties\":{"
+        "\"left_leg\":{\"type\":\"number\",\"description\":\"左腿舵机角度 0-180，默认90\"},"
+        "\"right_leg\":{\"type\":\"number\",\"description\":\"右腿舵机角度 0-180，默认90\"},"
+        "\"left_foot\":{\"type\":\"number\",\"description\":\"左脚舵机角度 0-180，默认90\"},"
+        "\"right_foot\":{\"type\":\"number\",\"description\":\"右脚舵机角度 0-180，默认90\"},"
+        "\"left_hand\":{\"type\":\"number\",\"description\":\"左手舵机角度 0-180，默认45\"},"
+        "\"right_hand\":{\"type\":\"number\",\"description\":\"右手舵机角度 0-180，默认135\"},"
+        "\"time\":{\"type\":\"number\",\"description\":\"过渡时间毫秒 100-3000，默认700\"}"
+    "},"
+    "\"required\":[]"
+    "}";
+
+static esp_err_t tool_otto_pose_execute(const char *input_json, char *output, size_t output_size) {
+    cJSON *input = cJSON_Parse(input_json);
+    if (!input) {
+        snprintf(output, output_size, "Error: Invalid JSON");
+        return ESP_FAIL;
+    }
+
+    int targets[SERVO_COUNT] = {90, 90, 90, 90, HAND_HOME_POSITION, 180 - HAND_HOME_POSITION};
+    int time_ms = 700;
+
+    cJSON *ll = cJSON_GetObjectItem(input, "left_leg");
+    cJSON *rl = cJSON_GetObjectItem(input, "right_leg");
+    cJSON *lf = cJSON_GetObjectItem(input, "left_foot");
+    cJSON *rf = cJSON_GetObjectItem(input, "right_foot");
+    cJSON *lh = cJSON_GetObjectItem(input, "left_hand");
+    cJSON *rh = cJSON_GetObjectItem(input, "right_hand");
+    cJSON *t  = cJSON_GetObjectItem(input, "time");
+
+    if (cJSON_IsNumber(ll)) targets[LEFT_LEG]   = ll->valueint;
+    if (cJSON_IsNumber(rl)) targets[RIGHT_LEG]  = rl->valueint;
+    if (cJSON_IsNumber(lf)) targets[LEFT_FOOT]  = lf->valueint;
+    if (cJSON_IsNumber(rf)) targets[RIGHT_FOOT] = rf->valueint;
+    if (cJSON_IsNumber(lh)) targets[LEFT_HAND]  = lh->valueint;
+    if (cJSON_IsNumber(rh)) targets[RIGHT_HAND] = rh->valueint;
+    if (cJSON_IsNumber(t))  time_ms = t->valueint;
+
+    if (time_ms < 100) time_ms = 100;
+    if (time_ms > 3000) time_ms = 3000;
+
+    for (int i = 0; i < SERVO_COUNT; i++) {
+        if (targets[i] < 0) targets[i] = 0;
+        if (targets[i] > 180) targets[i] = 180;
+    }
+
+    ESP_LOGI(TAG, "Pose: LL=%d RL=%d LF=%d RF=%d LH=%d RH=%d time=%dms",
+             targets[LEFT_LEG], targets[RIGHT_LEG], targets[LEFT_FOOT],
+             targets[RIGHT_FOOT], targets[LEFT_HAND], targets[RIGHT_HAND], time_ms);
+
+    otto_move_servos(&g_otto, time_ms, targets);
+
+    snprintf(output, output_size, "舵机姿态: 左腿%d 右腿%d 左脚%d 右脚%d 左手%d 右手%d 过渡%dms",
+             targets[LEFT_LEG], targets[RIGHT_LEG], targets[LEFT_FOOT],
+             targets[RIGHT_FOOT], targets[LEFT_HAND], targets[RIGHT_HAND], time_ms);
+
+    cJSON_Delete(input);
+    return ESP_OK;
+}
+
 void tool_otto_register(void) {
     ESP_LOGI(TAG, "Registering otto tools...");
 
     ottoclaw_tool_t tool = {
         .name = "self.otto.action",
-        .description = "控制机器人执行动作",
+        .description = "控制机器人执行预定义动作",
         .input_schema_json = otto_tool_schema,
         .execute = tool_otto_action_execute
     };
 
+    ottoclaw_tool_t pose_tool = {
+        .name = "self.otto.pose",
+        .description = "直接控制6个舵机到达指定角度（Servo Sequences Lite）。可以精确控制每个关节的位置，过渡到目标姿态。说'左手到45度、左脚到90度'这类指令时使用此工具。",
+        .input_schema_json = otto_pose_schema,
+        .execute = tool_otto_pose_execute
+    };
+
     tool_registry_register(&tool);
-    ESP_LOGI(TAG, "Otto tool registered successfully");
+    tool_registry_register(&pose_tool);
+    ESP_LOGI(TAG, "Otto tools registered (action + pose)");
 }

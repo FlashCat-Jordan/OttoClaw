@@ -8,8 +8,6 @@
 
 static const char *TAG = "OttoMovements";
 
-#define HAND_HOME_POSITION 45
-
 void otto_init(otto_t *otto, int left_leg, int right_leg, int left_foot, int right_foot, int left_hand, int right_hand) {
     memset(otto, 0, sizeof(otto_t));
 

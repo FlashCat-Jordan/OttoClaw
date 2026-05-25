@@ -17,6 +17,7 @@
 #define BIG 30
 
 #define SERVO_LIMIT_DEFAULT 240
+#define HAND_HOME_POSITION 45
 
 #define LEFT_LEG 0
 #define RIGHT_LEG 1
