@@ -159,7 +159,7 @@ static const char *otto_tool_schema =
 void tool_otto_register(void) {
     ESP_LOGI(TAG, "Registering otto tools...");
 
-    mimi_tool_t tool = {
+    ottoclaw_tool_t tool = {
         .name = "self.otto.action",
         .description = "控制机器人执行动作",
         .input_schema_json = otto_tool_schema,

@@ -1,5 +1,5 @@
 #include "tool_get_time.h"
-#include "mimi_config.h"
+#include "ottoclaw_config.h"
 #include "proxy/http_proxy.h"
 
 #include <string.h>
@@ -45,7 +45,7 @@ static bool parse_and_set_time(const char *date_str, char *out, size_t out_size)
     time_t t = mktime(&tm);
 
     /* Restore timezone */
-    setenv("TZ", MIMI_TIMEZONE, 1);
+    setenv("TZ", OTTOCLAW_TIMEZONE, 1);
     tzset();
 
     if (t < 0) return false;

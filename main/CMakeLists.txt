@@ -1,6 +1,6 @@
 idf_component_register(
     SRCS
-        "mimi.c"
+        "ottoclaw.c"
         "bus/message_bus.c"
         "wifi/wifi_manager.c"
         "dingtalk/dingtalk_bot.c"

@@ -1,5 +1,5 @@
 #include "context_builder.h"
-#include "mimi_config.h"
+#include "ottoclaw_config.h"
 #include "memory/memory_store.h"
 #include "skills/skills.h"
 
@@ -31,8 +31,8 @@ esp_err_t context_build_system_prompt(char *buf, size_t size)
     size_t off = 0;
 
     off += snprintf(buf + off, size - off,
-        "# MiaomiaoClaw\n\n"
-        "You are MiaomiaoClaw, a personal AI assistant running on an ESP32-S3 device.\n"
+        "# OttoClaw\n\n"
+        "You are OttoClaw, a personal AI assistant running on an ESP32-S3 device.\n"
         "You communicate through DingTalk and WebSocket.\n\n"
         "Be helpful, accurate, and concise.\n\n"
         "## Available Tools\n"
@@ -69,11 +69,11 @@ esp_err_t context_build_system_prompt(char *buf, size_t size)
         "5. Daily note path format: /spiffs/memory/YYYY-MM-DD.md (e.g. /spiffs/memory/2026-04-14.md)\n");
 
     /* Bootstrap files */
-    off = append_file(buf, size, off, MIMI_IDENTITY_FILE, "Identity");
-    off = append_file(buf, size, off, MIMI_AGENTS_FILE, "Agent Behavior");
-    off = append_file(buf, size, off, MIMI_TOOLS_FILE, "Tool Documentation");
-    off = append_file(buf, size, off, MIMI_SOUL_FILE, "Personality");
-    off = append_file(buf, size, off, MIMI_USER_FILE, "User Info");
+    off = append_file(buf, size, off, OTTOCLAW_IDENTITY_FILE, "Identity");
+    off = append_file(buf, size, off, OTTOCLAW_AGENTS_FILE, "Agent Behavior");
+    off = append_file(buf, size, off, OTTOCLAW_TOOLS_FILE, "Tool Documentation");
+    off = append_file(buf, size, off, OTTOCLAW_SOUL_FILE, "Personality");
+    off = append_file(buf, size, off, OTTOCLAW_USER_FILE, "User Info");
 
     /* Long-term memory */
     char mem_buf[4096];
@@ -84,7 +84,7 @@ esp_err_t context_build_system_prompt(char *buf, size_t size)
 
     /* Recent daily notes (last N days) */
     char recent_buf[4096];
-    if (memory_read_recent(recent_buf, sizeof(recent_buf), MIMI_MEMORY_LOOKBACK_DAYS) == ESP_OK && recent_buf[0]) {
+    if (memory_read_recent(recent_buf, sizeof(recent_buf), OTTOCLAW_MEMORY_LOOKBACK_DAYS) == ESP_OK && recent_buf[0]) {
         off += snprintf(buf + off, size - off, "\n## Recent Notes\n\n%s\n", recent_buf);
     }
 

@@ -1,5 +1,5 @@
 #include "llm_proxy.h"
-#include "mimi_config.h"
+#include "ottoclaw_config.h"
 #include "proxy/http_proxy.h"
 
 #include <string.h>
@@ -14,8 +14,8 @@
 static const char *TAG = "llm";
 
 static char s_api_key[128] = {0};
-static char s_model[64] = MIMI_LLM_DEFAULT_MODEL;
-static char s_provider[16] = MIMI_LLM_PROVIDER_DEFAULT;
+static char s_model[64] = OTTOCLAW_LLM_DEFAULT_MODEL;
+static char s_provider[16] = OTTOCLAW_LLM_PROVIDER_DEFAULT;
 static char s_api_base_url[128] = {0};
 
 static void safe_copy(char *dst, size_t dst_size, const char *src)
@@ -138,24 +138,24 @@ static const char *llm_api_url(void)
     }
     /* Otherwise use default URLs based on provider */
     if (provider_is_qwen()) {
-        return MIMI_QWEN_API_URL;
+        return OTTOCLAW_QWEN_API_URL;
     }
     if (provider_is_gemini()) {
-        return MIMI_GEMINI_API_URL;
+        return OTTOCLAW_GEMINI_API_URL;
     }
     if (provider_is_deepseek()) {
-        return MIMI_DEEPSEEK_API_URL;
+        return OTTOCLAW_DEEPSEEK_API_URL;
     }
     if (provider_is_groq()) {
-        return MIMI_GROQ_API_URL;
+        return OTTOCLAW_GROQ_API_URL;
     }
     if (provider_is_zhipu()) {
-        return MIMI_ZHIPU_API_URL;
+        return OTTOCLAW_ZHIPU_API_URL;
     }
     if (provider_is_vllm()) {
-        return MIMI_VLLM_API_URL;
+        return OTTOCLAW_VLLM_API_URL;
     }
-    return provider_is_openai() ? MIMI_OPENAI_API_URL : MIMI_LLM_API_URL;
+    return provider_is_openai() ? OTTOCLAW_OPENAI_API_URL : OTTOCLAW_LLM_API_URL;
 }
 
 static const char *llm_api_host(void)
@@ -204,23 +204,23 @@ static const char *llm_api_path(void)
 esp_err_t llm_proxy_init(void)
 {
     /* Use build-time secrets */
-    if (MIMI_SECRET_API_KEY[0] != '\0') {
-        safe_copy(s_api_key, sizeof(s_api_key), MIMI_SECRET_API_KEY);
+    if (OTTOCLAW_SECRET_API_KEY[0] != '\0') {
+        safe_copy(s_api_key, sizeof(s_api_key), OTTOCLAW_SECRET_API_KEY);
     }
-    if (MIMI_SECRET_MODEL[0] != '\0') {
-        safe_copy(s_model, sizeof(s_model), MIMI_SECRET_MODEL);
+    if (OTTOCLAW_SECRET_MODEL[0] != '\0') {
+        safe_copy(s_model, sizeof(s_model), OTTOCLAW_SECRET_MODEL);
     }
-    if (MIMI_SECRET_MODEL_PROVIDER[0] != '\0') {
-        safe_copy(s_provider, sizeof(s_provider), MIMI_SECRET_MODEL_PROVIDER);
+    if (OTTOCLAW_SECRET_MODEL_PROVIDER[0] != '\0') {
+        safe_copy(s_provider, sizeof(s_provider), OTTOCLAW_SECRET_MODEL_PROVIDER);
     }
-    if (MIMI_SECRET_API_BASE_URL[0] != '\0') {
-        safe_copy(s_api_base_url, sizeof(s_api_base_url), MIMI_SECRET_API_BASE_URL);
+    if (OTTOCLAW_SECRET_API_BASE_URL[0] != '\0') {
+        safe_copy(s_api_base_url, sizeof(s_api_base_url), OTTOCLAW_SECRET_API_BASE_URL);
     }
 
     if (s_api_key[0]) {
         ESP_LOGI(TAG, "LLM proxy initialized (provider: %s, model: %s)", s_provider, s_model);
     } else {
-        ESP_LOGW(TAG, "No API key configured in mimi_secrets.h");
+        ESP_LOGW(TAG, "No API key configured in ottoclaw_secrets.h");
     }
     return ESP_OK;
 }
@@ -228,7 +228,7 @@ esp_err_t llm_proxy_init(void)
 esp_err_t llm_proxy_reload(void)
 {
     nvs_handle_t nvs;
-    esp_err_t err = nvs_open(MIMI_NVS_LLM, NVS_READONLY, &nvs);
+    esp_err_t err = nvs_open(OTTOCLAW_NVS_LLM, NVS_READONLY, &nvs);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to open NVS for reload: %s", esp_err_to_name(err));
         return err;
@@ -237,29 +237,29 @@ esp_err_t llm_proxy_reload(void)
     char tmp[128] = {0};
     size_t len = sizeof(tmp);
     
-    if (nvs_get_str(nvs, MIMI_NVS_KEY_API_KEY, tmp, &len) == ESP_OK && tmp[0]) {
+    if (nvs_get_str(nvs, OTTOCLAW_NVS_KEY_API_KEY, tmp, &len) == ESP_OK && tmp[0]) {
         safe_copy(s_api_key, sizeof(s_api_key), tmp);
     }
     
     len = sizeof(tmp);
     memset(tmp, 0, sizeof(tmp));
-    if (nvs_get_str(nvs, MIMI_NVS_KEY_MODEL, tmp, &len) == ESP_OK && tmp[0]) {
+    if (nvs_get_str(nvs, OTTOCLAW_NVS_KEY_MODEL, tmp, &len) == ESP_OK && tmp[0]) {
         safe_copy(s_model, sizeof(s_model), tmp);
     } else {
-        safe_copy(s_model, sizeof(s_model), MIMI_LLM_DEFAULT_MODEL);
+        safe_copy(s_model, sizeof(s_model), OTTOCLAW_LLM_DEFAULT_MODEL);
     }
     
     len = sizeof(tmp);
     memset(tmp, 0, sizeof(tmp));
-    if (nvs_get_str(nvs, MIMI_NVS_KEY_PROVIDER, tmp, &len) == ESP_OK && tmp[0]) {
+    if (nvs_get_str(nvs, OTTOCLAW_NVS_KEY_PROVIDER, tmp, &len) == ESP_OK && tmp[0]) {
         safe_copy(s_provider, sizeof(s_provider), tmp);
     } else {
-        safe_copy(s_provider, sizeof(s_provider), MIMI_LLM_PROVIDER_DEFAULT);
+        safe_copy(s_provider, sizeof(s_provider), OTTOCLAW_LLM_PROVIDER_DEFAULT);
     }
     
     len = sizeof(tmp);
     memset(tmp, 0, sizeof(tmp));
-    if (nvs_get_str(nvs, MIMI_NVS_KEY_BASE_URL, tmp, &len) == ESP_OK && tmp[0]) {
+    if (nvs_get_str(nvs, OTTOCLAW_NVS_KEY_BASE_URL, tmp, &len) == ESP_OK && tmp[0]) {
         safe_copy(s_api_base_url, sizeof(s_api_base_url), tmp);
     }
     
@@ -306,7 +306,7 @@ static esp_err_t llm_http_direct(const char *post_data, resp_buf_t *rb, int *out
     } else {
         /* Standard Anthropic API uses x-api-key */
         esp_http_client_set_header(client, "x-api-key", s_api_key);
-        esp_http_client_set_header(client, "anthropic-version", MIMI_LLM_API_VERSION);
+        esp_http_client_set_header(client, "anthropic-version", OTTOCLAW_LLM_API_VERSION);
     }
     esp_http_client_set_post_field(client, post_data, strlen(post_data));
 
@@ -357,7 +357,7 @@ static esp_err_t llm_http_via_proxy(const char *post_data, resp_buf_t *rb, int *
             "anthropic-version: %s\r\n"
             "Content-Length: %d\r\n"
             "Connection: close\r\n\r\n",
-            llm_api_path(), llm_api_host(), s_api_key, MIMI_LLM_API_VERSION, body_len);
+            llm_api_path(), llm_api_host(), s_api_key, OTTOCLAW_LLM_API_VERSION, body_len);
     }
 
     if (proxy_conn_write(conn, header, hlen) < 0 ||
@@ -626,7 +626,7 @@ esp_err_t llm_chat(const char *system_prompt, const char *messages_json,
     /* Build request body (non-streaming) */
     cJSON *body = cJSON_CreateObject();
     cJSON_AddStringToObject(body, "model", s_model);
-    cJSON_AddNumberToObject(body, "max_tokens", MIMI_LLM_MAX_TOKENS);
+    cJSON_AddNumberToObject(body, "max_tokens", OTTOCLAW_LLM_MAX_TOKENS);
 
     if (provider_is_openai() || provider_is_qwen()) {
         cJSON *messages = cJSON_Parse(messages_json);
@@ -668,7 +668,7 @@ esp_err_t llm_chat(const char *system_prompt, const char *messages_json,
              (int)strlen(post_data));
 
     resp_buf_t rb;
-    if (resp_buf_init(&rb, MIMI_LLM_STREAM_BUF_SIZE) != ESP_OK) {
+    if (resp_buf_init(&rb, OTTOCLAW_LLM_STREAM_BUF_SIZE) != ESP_OK) {
         free(post_data);
         snprintf(response_buf, buf_size, "Error: Out of memory");
         return ESP_ERR_NO_MEM;
@@ -746,7 +746,7 @@ esp_err_t llm_chat_tools(const char *system_prompt,
     /* Build request body (non-streaming) */
     cJSON *body = cJSON_CreateObject();
     cJSON_AddStringToObject(body, "model", s_model);
-    cJSON_AddNumberToObject(body, "max_tokens", MIMI_LLM_MAX_TOKENS);
+    cJSON_AddNumberToObject(body, "max_tokens", OTTOCLAW_LLM_MAX_TOKENS);
 
     if (provider_is_openai() || provider_is_qwen()) {
         cJSON *openai_msgs = convert_messages_openai(system_prompt, messages);
@@ -789,7 +789,7 @@ esp_err_t llm_chat_tools(const char *system_prompt,
 
     /* HTTP call */
     resp_buf_t rb;
-    if (resp_buf_init(&rb, MIMI_LLM_STREAM_BUF_SIZE) != ESP_OK) {
+    if (resp_buf_init(&rb, OTTOCLAW_LLM_STREAM_BUF_SIZE) != ESP_OK) {
         free(post_data);
         return ESP_ERR_NO_MEM;
     }
@@ -844,7 +844,7 @@ esp_err_t llm_chat_tools(const char *system_prompt,
                 if (tool_calls && cJSON_IsArray(tool_calls)) {
                     cJSON *tc;
                     cJSON_ArrayForEach(tc, tool_calls) {
-                        if (resp->call_count >= MIMI_MAX_TOOL_CALLS) break;
+                        if (resp->call_count >= OTTOCLAW_MAX_TOOL_CALLS) break;
                         llm_tool_call_t *call = &resp->calls[resp->call_count];
                         cJSON *id = cJSON_GetObjectItem(tc, "id");
                         cJSON *func = cJSON_GetObjectItem(tc, "function");
@@ -916,7 +916,7 @@ esp_err_t llm_chat_tools(const char *system_prompt,
             cJSON_ArrayForEach(block, content) {
                 cJSON *btype = cJSON_GetObjectItem(block, "type");
                 if (!btype || strcmp(btype->valuestring, "tool_use") != 0) continue;
-                if (resp->call_count >= MIMI_MAX_TOOL_CALLS) break;
+                if (resp->call_count >= OTTOCLAW_MAX_TOOL_CALLS) break;
 
                 llm_tool_call_t *call = &resp->calls[resp->call_count];
 
@@ -958,8 +958,8 @@ esp_err_t llm_chat_tools(const char *system_prompt,
 esp_err_t llm_set_api_key(const char *api_key)
 {
     nvs_handle_t nvs;
-    ESP_ERROR_CHECK(nvs_open(MIMI_NVS_LLM, NVS_READWRITE, &nvs));
-    ESP_ERROR_CHECK(nvs_set_str(nvs, MIMI_NVS_KEY_API_KEY, api_key));
+    ESP_ERROR_CHECK(nvs_open(OTTOCLAW_NVS_LLM, NVS_READWRITE, &nvs));
+    ESP_ERROR_CHECK(nvs_set_str(nvs, OTTOCLAW_NVS_KEY_API_KEY, api_key));
     ESP_ERROR_CHECK(nvs_commit(nvs));
     nvs_close(nvs);
 
@@ -971,8 +971,8 @@ esp_err_t llm_set_api_key(const char *api_key)
 esp_err_t llm_set_model(const char *model)
 {
     nvs_handle_t nvs;
-    ESP_ERROR_CHECK(nvs_open(MIMI_NVS_LLM, NVS_READWRITE, &nvs));
-    ESP_ERROR_CHECK(nvs_set_str(nvs, MIMI_NVS_KEY_MODEL, model));
+    ESP_ERROR_CHECK(nvs_open(OTTOCLAW_NVS_LLM, NVS_READWRITE, &nvs));
+    ESP_ERROR_CHECK(nvs_set_str(nvs, OTTOCLAW_NVS_KEY_MODEL, model));
     ESP_ERROR_CHECK(nvs_commit(nvs));
     nvs_close(nvs);
 
@@ -984,8 +984,8 @@ esp_err_t llm_set_model(const char *model)
 esp_err_t llm_set_provider(const char *provider)
 {
     nvs_handle_t nvs;
-    ESP_ERROR_CHECK(nvs_open(MIMI_NVS_LLM, NVS_READWRITE, &nvs));
-    ESP_ERROR_CHECK(nvs_set_str(nvs, MIMI_NVS_KEY_PROVIDER, provider));
+    ESP_ERROR_CHECK(nvs_open(OTTOCLAW_NVS_LLM, NVS_READWRITE, &nvs));
+    ESP_ERROR_CHECK(nvs_set_str(nvs, OTTOCLAW_NVS_KEY_PROVIDER, provider));
     ESP_ERROR_CHECK(nvs_commit(nvs));
     nvs_close(nvs);
 

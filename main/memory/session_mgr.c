@@ -1,5 +1,5 @@
 #include "session_mgr.h"
-#include "mimi_config.h"
+#include "ottoclaw_config.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -29,13 +29,13 @@ static uint32_t fnv1a_32(const char *str)
 static void session_path(const char *chat_id, char *buf, size_t size)
 {
     uint32_t h = fnv1a_32(chat_id);
-    snprintf(buf, size, "%s/tg_%08" PRIx32 ".jsonl", MIMI_SPIFFS_SESSION_DIR, h);
+    snprintf(buf, size, "%s/tg_%08" PRIx32 ".jsonl", OTTOCLAW_SPIFFS_SESSION_DIR, h);
     ESP_LOGD(TAG, "session_path: chat_id=%s -> %s", chat_id, buf);
 }
 
 esp_err_t session_mgr_init(void)
 {
-    ESP_LOGI(TAG, "Session manager initialized at %s", MIMI_SPIFFS_SESSION_DIR);
+    ESP_LOGI(TAG, "Session manager initialized at %s", OTTOCLAW_SPIFFS_SESSION_DIR);
     return ESP_OK;
 }
 
@@ -80,7 +80,7 @@ esp_err_t session_get_history_json(const char *chat_id, char *buf, size_t size, 
     }
 
     /* Read all lines into a ring buffer of cJSON objects */
-    cJSON *messages[MIMI_SESSION_MAX_MSGS];
+    cJSON *messages[OTTOCLAW_SESSION_MAX_MSGS];
     int count = 0;
     int write_idx = 0;
 
@@ -156,10 +156,10 @@ esp_err_t session_clear(const char *chat_id)
 
 void session_list(void)
 {
-    DIR *dir = opendir(MIMI_SPIFFS_SESSION_DIR);
+    DIR *dir = opendir(OTTOCLAW_SPIFFS_SESSION_DIR);
     if (!dir) {
         /* SPIFFS is flat, so list all files matching pattern */
-        dir = opendir(MIMI_SPIFFS_BASE);
+        dir = opendir(OTTOCLAW_SPIFFS_BASE);
         if (!dir) {
             ESP_LOGW(TAG, "Cannot open SPIFFS directory");
             return;

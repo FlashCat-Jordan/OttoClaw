@@ -6,7 +6,7 @@
  */
 
 #include "tool_web_search.h"
-#include "mimi_config.h"
+#include "ottoclaw_config.h"
 #include "proxy/http_proxy.h"
 
 #include <string.h>
@@ -21,10 +21,9 @@
 static const char *TAG = "web_search";
 
 /* Bailian App configuration */
-#define BAILIAN_APP_ID      "758d9af49a7a460ba91ba16a7d7d767b"
 #define BAILIAN_API_HOST    "dashscope.aliyuncs.com"
-#define BAILIAN_API_PATH    "/api/v1/apps/" BAILIAN_APP_ID "/completion"
 
+static char s_bailian_app_id[64] = {0};
 static char s_search_key[128] = {0};
 
 #define SEARCH_BUF_SIZE     (32 * 1024)
@@ -55,31 +54,47 @@ static esp_err_t http_event_handler(esp_http_client_event_t *evt)
 
 esp_err_t tool_web_search_init(void)
 {
-    /* Use main API key for Bailian app */
-    if (MIMI_SECRET_API_KEY[0] != '\0') {
-        strncpy(s_search_key, MIMI_SECRET_API_KEY, sizeof(s_search_key) - 1);
-    }
-    
-    /* Search-specific key overrides if set */
-    if (MIMI_SECRET_SEARCH_KEY[0] != '\0') {
-        strncpy(s_search_key, MIMI_SECRET_SEARCH_KEY, sizeof(s_search_key) - 1);
+    /* Bailian App ID: build-time default → NVS override */
+    if (OTTOCLAW_SECRET_BAILIAN_APP_ID[0] != '\0') {
+        strncpy(s_bailian_app_id, OTTOCLAW_SECRET_BAILIAN_APP_ID, sizeof(s_bailian_app_id) - 1);
     }
 
-    /* NVS overrides take highest priority (set via CLI) */
     nvs_handle_t nvs;
-    if (nvs_open(MIMI_NVS_SEARCH, NVS_READONLY, &nvs) == ESP_OK) {
-        char tmp[128] = {0};
+    if (nvs_open(OTTOCLAW_NVS_SEARCH, NVS_READONLY, &nvs) == ESP_OK) {
+        char tmp[64] = {0};
         size_t len = sizeof(tmp);
-        if (nvs_get_str(nvs, MIMI_NVS_KEY_API_KEY, tmp, &len) == ESP_OK && tmp[0]) {
-            strncpy(s_search_key, tmp, sizeof(s_search_key) - 1);
+        if (nvs_get_str(nvs, OTTOCLAW_NVS_KEY_BAILIAN_APP_ID, tmp, &len) == ESP_OK && tmp[0]) {
+            strncpy(s_bailian_app_id, tmp, sizeof(s_bailian_app_id) - 1);
         }
         nvs_close(nvs);
     }
 
-    if (s_search_key[0]) {
-        ESP_LOGI(TAG, "Web search initialized (using Bailian App: %s)", BAILIAN_APP_ID);
+    /* Use main API key for Bailian app */
+    if (OTTOCLAW_SECRET_API_KEY[0] != '\0') {
+        strncpy(s_search_key, OTTOCLAW_SECRET_API_KEY, sizeof(s_search_key) - 1);
+    }
+
+    /* Search-specific key overrides if set */
+    if (OTTOCLAW_SECRET_SEARCH_KEY[0] != '\0') {
+        strncpy(s_search_key, OTTOCLAW_SECRET_SEARCH_KEY, sizeof(s_search_key) - 1);
+    }
+
+    /* NVS overrides take highest priority (set via CLI) */
+    if (nvs_open(OTTOCLAW_NVS_SEARCH, NVS_READONLY, &nvs) == ESP_OK) {
+        char tmp2[128] = {0};
+        size_t len2 = sizeof(tmp2);
+        if (nvs_get_str(nvs, OTTOCLAW_NVS_KEY_SEARCH_KEY, tmp2, &len2) == ESP_OK && tmp2[0]) {
+            strncpy(s_search_key, tmp2, sizeof(s_search_key) - 1);
+        }
+        nvs_close(nvs);
+    }
+
+    if (s_search_key[0] && s_bailian_app_id[0]) {
+        ESP_LOGI(TAG, "Web search initialized (Bailian App: %s)", s_bailian_app_id);
+    } else if (!s_bailian_app_id[0]) {
+        ESP_LOGW(TAG, "No Bailian App ID configured for web search");
     } else {
-        ESP_LOGW(TAG, "No API key for web search");
+        ESP_LOGW(TAG, "No API key configured for web search");
     }
     return ESP_OK;
 }
@@ -133,7 +148,7 @@ static void extract_bailian_response(const char *response_json, char *output, si
 static esp_err_t search_bailian_direct(const char *post_data, search_buf_t *sb)
 {
     char url[256];
-    snprintf(url, sizeof(url), "https://%s%s", BAILIAN_API_HOST, BAILIAN_API_PATH);
+    snprintf(url, sizeof(url), "https://%s/api/v1/apps/%s/completion", BAILIAN_API_HOST, s_bailian_app_id);
     
     esp_http_client_config_t config = {
         .url = url,
@@ -179,6 +194,9 @@ static esp_err_t search_bailian_via_proxy(const char *post_data, search_buf_t *s
 
     int body_len = strlen(post_data);
     char header[512];
+    char bailian_path[128];
+    snprintf(bailian_path, sizeof(bailian_path), "/api/v1/apps/%s/completion", s_bailian_app_id);
+
     int hlen = snprintf(header, sizeof(header),
         "POST %s HTTP/1.1\r\n"
         "Host: %s\r\n"
@@ -186,7 +204,7 @@ static esp_err_t search_bailian_via_proxy(const char *post_data, search_buf_t *s
         "Authorization: Bearer %s\r\n"
         "Content-Length: %d\r\n"
         "Connection: close\r\n\r\n",
-        BAILIAN_API_PATH, BAILIAN_API_HOST, s_search_key, body_len);
+        bailian_path, BAILIAN_API_HOST, s_search_key, body_len);
 
     if (proxy_conn_write(conn, header, hlen) < 0) {
         proxy_conn_close(conn);
@@ -244,6 +262,10 @@ esp_err_t tool_web_search_execute(const char *input_json, char *output, size_t o
 {
     if (s_search_key[0] == '\0') {
         snprintf(output, output_size, "Error: No API key configured for web search");
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (s_bailian_app_id[0] == '\0') {
+        snprintf(output, output_size, "Error: No Bailian App ID configured for web search");
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -321,12 +343,25 @@ esp_err_t tool_web_search_execute(const char *input_json, char *output, size_t o
 esp_err_t tool_web_search_set_key(const char *api_key)
 {
     nvs_handle_t nvs;
-    ESP_ERROR_CHECK(nvs_open(MIMI_NVS_SEARCH, NVS_READWRITE, &nvs));
-    ESP_ERROR_CHECK(nvs_set_str(nvs, MIMI_NVS_KEY_API_KEY, api_key));
+    ESP_ERROR_CHECK(nvs_open(OTTOCLAW_NVS_SEARCH, NVS_READWRITE, &nvs));
+    ESP_ERROR_CHECK(nvs_set_str(nvs, OTTOCLAW_NVS_KEY_SEARCH_KEY, api_key));
     ESP_ERROR_CHECK(nvs_commit(nvs));
     nvs_close(nvs);
 
     strncpy(s_search_key, api_key, sizeof(s_search_key) - 1);
     ESP_LOGI(TAG, "Search API key saved");
+    return ESP_OK;
+}
+
+esp_err_t tool_web_search_set_bailian_app_id(const char *app_id)
+{
+    nvs_handle_t nvs;
+    ESP_ERROR_CHECK(nvs_open(OTTOCLAW_NVS_SEARCH, NVS_READWRITE, &nvs));
+    ESP_ERROR_CHECK(nvs_set_str(nvs, OTTOCLAW_NVS_KEY_BAILIAN_APP_ID, app_id));
+    ESP_ERROR_CHECK(nvs_commit(nvs));
+    nvs_close(nvs);
+
+    strncpy(s_bailian_app_id, app_id, sizeof(s_bailian_app_id) - 1);
+    ESP_LOGI(TAG, "Bailian App ID saved");
     return ESP_OK;
 }

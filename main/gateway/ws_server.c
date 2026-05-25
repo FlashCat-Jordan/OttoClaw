@@ -1,5 +1,5 @@
 #include "ws_server.h"
-#include "mimi_config.h"
+#include "ottoclaw_config.h"
 #include "bus/message_bus.h"
 
 #include <string.h>
@@ -23,11 +23,11 @@ typedef struct {
     bool active;
 } ws_client_t;
 
-static ws_client_t s_clients[MIMI_WS_MAX_CLIENTS];
+static ws_client_t s_clients[OTTOCLAW_WS_MAX_CLIENTS];
 
 static ws_client_t *find_client_by_fd(int fd)
 {
-    for (int i = 0; i < MIMI_WS_MAX_CLIENTS; i++) {
+    for (int i = 0; i < OTTOCLAW_WS_MAX_CLIENTS; i++) {
         if (s_clients[i].active && s_clients[i].fd == fd) {
             return &s_clients[i];
         }
@@ -37,7 +37,7 @@ static ws_client_t *find_client_by_fd(int fd)
 
 static ws_client_t *find_client_by_chat_id(const char *chat_id)
 {
-    for (int i = 0; i < MIMI_WS_MAX_CLIENTS; i++) {
+    for (int i = 0; i < OTTOCLAW_WS_MAX_CLIENTS; i++) {
         if (s_clients[i].active && strcmp(s_clients[i].chat_id, chat_id) == 0) {
             return &s_clients[i];
         }
@@ -47,7 +47,7 @@ static ws_client_t *find_client_by_chat_id(const char *chat_id)
 
 static ws_client_t *add_client(int fd)
 {
-    for (int i = 0; i < MIMI_WS_MAX_CLIENTS; i++) {
+    for (int i = 0; i < OTTOCLAW_WS_MAX_CLIENTS; i++) {
         if (!s_clients[i].active) {
             s_clients[i].fd = fd;
             snprintf(s_clients[i].chat_id, sizeof(s_clients[i].chat_id), "ws_%d", fd);
@@ -62,7 +62,7 @@ static ws_client_t *add_client(int fd)
 
 static void remove_client(int fd)
 {
-    for (int i = 0; i < MIMI_WS_MAX_CLIENTS; i++) {
+    for (int i = 0; i < OTTOCLAW_WS_MAX_CLIENTS; i++) {
         if (s_clients[i].active && s_clients[i].fd == fd) {
             ESP_LOGI(TAG, "Client disconnected: %s", s_clients[i].chat_id);
             s_clients[i].active = false;
@@ -131,8 +131,8 @@ static esp_err_t ws_handler(httpd_req_t *req)
         ESP_LOGI(TAG, "WS message from %s: %.40s...", chat_id, content->valuestring);
 
         /* Push to inbound bus */
-        mimi_msg_t msg = {0};
-        strncpy(msg.channel, MIMI_CHAN_WEBSOCKET, sizeof(msg.channel) - 1);
+        ottoclaw_msg_t msg = {0};
+        strncpy(msg.channel, OTTOCLAW_CHAN_WEBSOCKET, sizeof(msg.channel) - 1);
         strncpy(msg.chat_id, chat_id, sizeof(msg.chat_id) - 1);
         msg.content = strdup(content->valuestring);
         if (msg.content) {
@@ -207,7 +207,7 @@ static esp_err_t settings_get_handler(httpd_req_t *req)
 static esp_err_t api_settings_get_handler(httpd_req_t *req)
 {
     nvs_handle_t nvs_h;
-    esp_err_t err = nvs_open("mimi", NVS_READONLY, &nvs_h);
+    esp_err_t err = nvs_open("ottoclaw_config", NVS_READONLY, &nvs_h);
     
     cJSON *root = cJSON_CreateObject();
     
@@ -260,7 +260,7 @@ static esp_err_t api_wifi_post_handler(httpd_req_t *req)
     }
     
     nvs_handle_t nvs_h;
-    esp_err_t err = nvs_open("mimi", NVS_READWRITE, &nvs_h);
+    esp_err_t err = nvs_open("ottoclaw_config", NVS_READWRITE, &nvs_h);
     bool success = false;
     
     if (err == ESP_OK) {
@@ -306,7 +306,7 @@ static esp_err_t api_proxy_post_handler(httpd_req_t *req)
     }
     
     nvs_handle_t nvs_h;
-    esp_err_t err = nvs_open("mimi", NVS_READWRITE, &nvs_h);
+    esp_err_t err = nvs_open("ottoclaw_config", NVS_READWRITE, &nvs_h);
     bool success = false;
     
     if (err == ESP_OK) {
@@ -359,9 +359,9 @@ esp_err_t ws_server_start(void)
     memset(s_clients, 0, sizeof(s_clients));
 
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.server_port = MIMI_WS_PORT;
-    config.ctrl_port = MIMI_WS_PORT + 1;
-    config.max_open_sockets = MIMI_WS_MAX_CLIENTS;
+    config.server_port = OTTOCLAW_WS_PORT;
+    config.ctrl_port = OTTOCLAW_WS_PORT + 1;
+    config.max_open_sockets = OTTOCLAW_WS_MAX_CLIENTS;
 
     esp_err_t ret = httpd_start(&s_server, &config);
     if (ret != ESP_OK) {
@@ -429,7 +429,7 @@ esp_err_t ws_server_start(void)
     };
     httpd_register_uri_handler(s_server, &ws_uri);
 
-    ESP_LOGI(TAG, "WebSocket server started on port %d", MIMI_WS_PORT);
+    ESP_LOGI(TAG, "WebSocket server started on port %d", OTTOCLAW_WS_PORT);
     return ESP_OK;
 }
 

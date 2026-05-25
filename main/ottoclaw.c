@@ -10,7 +10,7 @@
 #include "nvs_flash.h"
 #include "driver/gpio.h"
 
-#include "mimi_config.h"
+#include "ottoclaw_config.h"
 #include "bus/message_bus.h"
 #include "wifi/wifi_manager.h"
 #include "dingtalk/dingtalk_bot.h"
@@ -30,7 +30,7 @@
 #include "otto/otto_movements.h"
 #include "config_portal/config_portal.h"
 
-static const char *TAG = "mimi";
+static const char *TAG = "ottoclaw";
 
 otto_t g_otto;
 
@@ -59,7 +59,7 @@ static esp_err_t init_nvs(void)
 static esp_err_t init_spiffs(void)
 {
     esp_vfs_spiffs_conf_t conf = {
-        .base_path = MIMI_SPIFFS_BASE,
+        .base_path = OTTOCLAW_SPIFFS_BASE,
         .partition_label = NULL,
         .max_files = 10,
         .format_if_mount_failed = true,
@@ -84,14 +84,14 @@ static void outbound_dispatch_task(void *arg)
     ESP_LOGI(TAG, "Outbound dispatch started");
 
     while (1) {
-        mimi_msg_t msg;
+        ottoclaw_msg_t msg;
         if (message_bus_pop_outbound(&msg, UINT32_MAX) != ESP_OK) continue;
 
         ESP_LOGI(TAG, "Dispatching response to %s:%s", msg.channel, msg.chat_id);
 
-        if (strcmp(msg.channel, MIMI_CHAN_DINGTALK) == 0) {
+        if (strcmp(msg.channel, OTTOCLAW_CHAN_DINGTALK) == 0) {
             dingtalk_send_message(msg.chat_id, msg.content);
-        } else if (strcmp(msg.channel, MIMI_CHAN_WEBSOCKET) == 0) {
+        } else if (strcmp(msg.channel, OTTOCLAW_CHAN_WEBSOCKET) == 0) {
             ws_server_send(msg.chat_id, msg.content);
         } else {
             ESP_LOGW(TAG, "Unknown channel: %s", msg.channel);
@@ -150,8 +150,8 @@ static void start_normal_services(void)
     /* Outbound dispatch task */
     BaseType_t ret = xTaskCreatePinnedToCore(
         outbound_dispatch_task, "outbound",
-        MIMI_OUTBOUND_STACK, NULL,
-        MIMI_OUTBOUND_PRIO, NULL, MIMI_OUTBOUND_CORE);
+        OTTOCLAW_OUTBOUND_STACK, NULL,
+        OTTOCLAW_OUTBOUND_PRIO, NULL, OTTOCLAW_OUTBOUND_CORE);
     if (ret != pdPASS) {
         ESP_LOGE(TAG, "outbound_dispatch_task start failed");
     }
@@ -165,7 +165,7 @@ void app_main(void)
     esp_log_level_set("esp-x509-crt-bundle", ESP_LOG_WARN);
 
     ESP_LOGI(TAG, "========================================");
-    ESP_LOGI(TAG, "  MiaomiaoClaw - ESP32-S3 AI Agent");
+    ESP_LOGI(TAG, "  OttoClaw - 闪猫科技 ESP32-S3 AI Agent");
     ESP_LOGI(TAG, "========================================");
 
     /* Print memory info */
@@ -278,7 +278,7 @@ void app_main(void)
         lcd_set_status_text("无WiFi配置");
     }
 
-    ESP_LOGI(TAG, "MiaomiaoClaw ready. Type 'help' for CLI commands.");
+    ESP_LOGI(TAG, "OttoClaw ready. Type 'help' for CLI commands.");
 
     /* Main loop: poll for BOOT long-press to enter config mode */
     while (1) {

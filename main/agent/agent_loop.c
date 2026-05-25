@@ -1,6 +1,6 @@
 #include "agent_loop.h"
 #include "agent/context_builder.h"
-#include "mimi_config.h"
+#include "ottoclaw_config.h"
 #include "bus/message_bus.h"
 #include "llm/llm_proxy.h"
 #include "memory/session_mgr.h"
@@ -182,8 +182,8 @@ static void agent_loop_task(void *arg)
     esp_task_wdt_delete(NULL);  /* also remove current task handle alias */
 
     /* Allocate large buffers from PSRAM */
-    char *system_prompt = heap_caps_calloc(1, MIMI_CONTEXT_BUF_SIZE, MALLOC_CAP_SPIRAM);
-    char *history_json = heap_caps_calloc(1, MIMI_LLM_STREAM_BUF_SIZE, MALLOC_CAP_SPIRAM);
+    char *system_prompt = heap_caps_calloc(1, OTTOCLAW_CONTEXT_BUF_SIZE, MALLOC_CAP_SPIRAM);
+    char *history_json = heap_caps_calloc(1, OTTOCLAW_LLM_STREAM_BUF_SIZE, MALLOC_CAP_SPIRAM);
     char *tool_output = heap_caps_calloc(1, TOOL_OUTPUT_SIZE, MALLOC_CAP_SPIRAM);
 
     if (!system_prompt || !history_json || !tool_output) {
@@ -195,18 +195,18 @@ static void agent_loop_task(void *arg)
     const char *tools_json = tool_registry_get_tools_json();
 
     while (1) {
-        mimi_msg_t msg;
+        ottoclaw_msg_t msg;
         esp_err_t err = message_bus_pop_inbound(&msg, UINT32_MAX);
         if (err != ESP_OK) continue;
 
         ESP_LOGI(TAG, "Processing message from %s:%s", msg.channel, msg.chat_id);
 
         /* 1. Build system prompt */
-        context_build_system_prompt(system_prompt, MIMI_CONTEXT_BUF_SIZE);
+        context_build_system_prompt(system_prompt, OTTOCLAW_CONTEXT_BUF_SIZE);
 
         /* 2. Load session history into cJSON array */
         session_get_history_json(msg.chat_id, history_json,
-                                 MIMI_LLM_STREAM_BUF_SIZE, MIMI_AGENT_MAX_HISTORY);
+                                 OTTOCLAW_LLM_STREAM_BUF_SIZE, OTTOCLAW_AGENT_MAX_HISTORY);
 
         cJSON *messages = cJSON_Parse(history_json);
         if (!messages) messages = cJSON_CreateArray();
@@ -230,7 +230,7 @@ static void agent_loop_task(void *arg)
         bool motion_triggered = false;
         int iteration = 0;
 
-        while (iteration < MIMI_AGENT_MAX_TOOL_ITER) {
+        while (iteration < OTTOCLAW_AGENT_MAX_TOOL_ITER) {
             llm_response_t resp;
             err = llm_chat_tools(system_prompt, messages, tools_json, &resp);
 
@@ -307,7 +307,7 @@ static void agent_loop_task(void *arg)
             }
 
             /* Push response to outbound */
-            mimi_msg_t out = {0};
+            ottoclaw_msg_t out = {0};
             strncpy(out.channel, msg.channel, sizeof(out.channel) - 1);
             strncpy(out.chat_id, msg.chat_id, sizeof(out.chat_id) - 1);
             out.content = final_text;  /* transfer ownership */
@@ -318,7 +318,7 @@ static void agent_loop_task(void *arg)
             lcd_set_state(LCD_STATE_ERROR);
             lcd_show_chat_message("system", "Error: no response");
 
-            mimi_msg_t out = {0};
+            ottoclaw_msg_t out = {0};
             strncpy(out.channel, msg.channel, sizeof(out.channel) - 1);
             strncpy(out.chat_id, msg.chat_id, sizeof(out.chat_id) - 1);
             out.content = strdup("Sorry, I encountered an error.");
@@ -349,8 +349,8 @@ esp_err_t agent_loop_start(void)
 {
     BaseType_t ret = xTaskCreatePinnedToCore(
         agent_loop_task, "agent_loop",
-        MIMI_AGENT_STACK, NULL,
-        MIMI_AGENT_PRIO, NULL, MIMI_AGENT_CORE);
+        OTTOCLAW_AGENT_STACK, NULL,
+        OTTOCLAW_AGENT_PRIO, NULL, OTTOCLAW_AGENT_CORE);
 
     return (ret == pdPASS) ? ESP_OK : ESP_FAIL;
 }

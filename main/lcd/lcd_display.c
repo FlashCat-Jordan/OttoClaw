@@ -1,5 +1,5 @@
 /*
- * lcd_display.c — MiaomiaoClaw 像素风机甲座舱 UI
+ * lcd_display.c — OttoClaw 像素风机甲座舱 UI
  * 全新设计：小人坐在机甲座舱中，22种状态表情，流式逐字显示
  */
 #include "lcd_display.h"
@@ -1430,7 +1430,7 @@ void lcd_stream_end(void)
 void lcd_show_qr_overlay(const char *url, const char *hint)
 {
     (void)url;
-    const char *ssid = "MiaomiaoClaw";
+    const char *ssid = "OttoClaw";
     char hint_copy[192] = {0};
     if (hint && hint[0]) {
         snprintf(hint_copy, sizeof(hint_copy), "%s", hint);
@@ -1484,7 +1484,7 @@ void lcd_show_qr_overlay(const char *url, const char *hint)
     lv_obj_set_style_text_font(hint_lbl, font_cn, 0);
     lv_obj_set_style_text_color(hint_lbl, lv_color_hex(0xA0C0FF), 0);
     lv_label_set_long_mode(hint_lbl, LV_LABEL_LONG_WRAP);
-    lv_label_set_text(hint_lbl, hint ? hint : "热点: MiaomiaoClaw\n访问 http://192.168.4.1 进入web配置面板");
+    lv_label_set_text(hint_lbl, hint ? hint : "热点: OttoClaw\n访问 http://192.168.4.1 进入web配置面板");
     lv_obj_align(hint_lbl, LV_ALIGN_BOTTOM_MID, 0, -16);
 
     lvgl_port_unlock();

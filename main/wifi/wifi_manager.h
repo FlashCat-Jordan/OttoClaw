@@ -57,7 +57,7 @@ void wifi_manager_scan_and_print(void);
 bool wifi_manager_has_saved_credentials(void);
 
 /**
- * Start WiFi using credentials stored in NVS (ignores mimi_secrets.h).
+ * Start WiFi using credentials stored in NVS (ignores ottoclaw_secrets.h).
  * Used after config portal saves credentials.
  */
 esp_err_t wifi_manager_start_from_nvs(void);

@@ -1,5 +1,5 @@
 #include "dingtalk_bot.h"
-#include "mimi_config.h"
+#include "ottoclaw_config.h"
 #include "bus/message_bus.h"
 #include "esp_log.h"
 #include "esp_http_client.h"
@@ -19,8 +19,8 @@
 
 static const char *TAG = "dingtalk";
 
-static char s_app_key[64] = MIMI_SECRET_DINGTALK_APP_KEY;
-static char s_app_secret[128] = MIMI_SECRET_DINGTALK_APP_SECRET;
+static char s_app_key[64] = OTTOCLAW_SECRET_DINGTALK_APP_KEY;
+static char s_app_secret[128] = OTTOCLAW_SECRET_DINGTALK_APP_SECRET;
 static char s_access_token[2048] = {0};
 static int64_t s_token_expire_time = 0;
 
@@ -317,7 +317,7 @@ static esp_err_t dingtalk_get_stream_credential(dingtalk_stream_credential_t *cr
     cJSON_AddItemToArray(subs, sub2);
     
     cJSON_AddItemToObject(body, "subscriptions", subs);
-    cJSON_AddStringToObject(body, "ua", "miaomiaoclaw-esp32/1.0");
+    cJSON_AddStringToObject(body, "ua", "ottoclaw-esp32/1.0");
     
     char *json_str = cJSON_PrintUnformatted(body);
     cJSON_Delete(body);
@@ -351,7 +351,7 @@ static esp_err_t dingtalk_get_stream_credential(dingtalk_stream_credential_t *cr
     
     esp_http_client_set_header(client, "Content-Type", "application/json");
     esp_http_client_set_header(client, "Accept", "application/json");
-    esp_http_client_set_header(client, "User-Agent", "miaomiaoclaw-esp32/1.0");
+    esp_http_client_set_header(client, "User-Agent", "ottoclaw-esp32/1.0");
     
     ESP_LOGI(TAG, "Sending HTTP POST to: %s", url);
     ESP_LOGI(TAG, "Request body length: %d", strlen(json_str));
@@ -611,8 +611,8 @@ static esp_err_t dingtalk_handle_bot_message(cJSON *data)
     char chat_id[64];
     snprintf(chat_id, sizeof(chat_id), "dt_%s", user_id);
     
-    mimi_msg_t msg = {0};
-    strncpy(msg.channel, MIMI_CHAN_DINGTALK, sizeof(msg.channel) - 1);
+    ottoclaw_msg_t msg = {0};
+    strncpy(msg.channel, OTTOCLAW_CHAN_DINGTALK, sizeof(msg.channel) - 1);
     strncpy(msg.chat_id, chat_id, sizeof(msg.chat_id) - 1);
     msg.content = msg_copy;
     
@@ -966,14 +966,14 @@ esp_err_t dingtalk_bot_init(void)
     memset(s_msg_cache, 0, sizeof(s_msg_cache));
     
     nvs_handle_t nvs;
-    if (nvs_open(MIMI_NVS_DINGTALK, NVS_READONLY, &nvs) == ESP_OK) {
+    if (nvs_open(OTTOCLAW_NVS_DINGTALK, NVS_READONLY, &nvs) == ESP_OK) {
         size_t len;
         
         len = sizeof(s_app_key);
-        nvs_get_str(nvs, MIMI_NVS_KEY_DINGTALK_KEY, s_app_key, &len);
+        nvs_get_str(nvs, OTTOCLAW_NVS_KEY_DINGTALK_KEY, s_app_key, &len);
         
         len = sizeof(s_app_secret);
-        nvs_get_str(nvs, MIMI_NVS_KEY_DINGTALK_SECRET, s_app_secret, &len);
+        nvs_get_str(nvs, OTTOCLAW_NVS_KEY_DINGTALK_SECRET, s_app_secret, &len);
         
         nvs_close(nvs);
         ESP_LOGI(TAG, "Loaded credentials from NVS");
@@ -1010,11 +1010,11 @@ esp_err_t dingtalk_bot_start(void)
     BaseType_t ret = xTaskCreatePinnedToCore(
         dingtalk_stream_task,
         "dt_stream",
-        MIMI_DINGTALK_POLL_STACK,
+        OTTOCLAW_DINGTALK_POLL_STACK,
         NULL,
-        MIMI_DINGTALK_POLL_PRIO,
+        OTTOCLAW_DINGTALK_POLL_PRIO,
         &s_stream_task,
-        MIMI_DINGTALK_POLL_CORE
+        OTTOCLAW_DINGTALK_POLL_CORE
     );
     
     if (ret != pdPASS) {
@@ -1068,14 +1068,14 @@ esp_err_t dingtalk_set_credentials(const char *app_key, const char *app_secret)
     s_token_expire_time = 0;
     
     nvs_handle_t nvs;
-    esp_err_t err = nvs_open(MIMI_NVS_DINGTALK, NVS_READWRITE, &nvs);
+    esp_err_t err = nvs_open(OTTOCLAW_NVS_DINGTALK, NVS_READWRITE, &nvs);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to open NVS: %s", esp_err_to_name(err));
         return err;
     }
     
-    nvs_set_str(nvs, MIMI_NVS_KEY_DINGTALK_KEY, s_app_key);
-    nvs_set_str(nvs, MIMI_NVS_KEY_DINGTALK_SECRET, s_app_secret);
+    nvs_set_str(nvs, OTTOCLAW_NVS_KEY_DINGTALK_KEY, s_app_key);
+    nvs_set_str(nvs, OTTOCLAW_NVS_KEY_DINGTALK_SECRET, s_app_secret);
     nvs_commit(nvs);
     nvs_close(nvs);
     

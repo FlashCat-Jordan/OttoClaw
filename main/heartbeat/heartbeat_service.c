@@ -1,5 +1,5 @@
 #include "heartbeat_service.h"
-#include "mimi_config.h"
+#include "ottoclaw_config.h"
 #include "bus/message_bus.h"
 #include <stdio.h>
 #include <string.h>
@@ -133,8 +133,8 @@ esp_err_t heartbeat_service_trigger(void)
 
     ESP_LOGI(TAG, "Tasks found in HEARTBEAT.md, triggering agent");
 
-    mimi_msg_t msg;
-    strncpy(msg.channel, MIMI_CHAN_HEARTBEAT, sizeof(msg.channel) - 1);
+    ottoclaw_msg_t msg;
+    strncpy(msg.channel, OTTOCLAW_CHAN_HEARTBEAT, sizeof(msg.channel) - 1);
     strncpy(msg.chat_id, "system", sizeof(msg.chat_id) - 1);
     
     const char *prompt = "Please check HEARTBEAT.md for pending tasks and handle them accordingly.";

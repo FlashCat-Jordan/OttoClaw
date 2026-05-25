@@ -8,7 +8,7 @@ typedef struct {
     const char *description;
     const char *input_schema_json;  /* JSON Schema string for input */
     esp_err_t (*execute)(const char *input_json, char *output, size_t output_size);
-} mimi_tool_t;
+} ottoclaw_tool_t;
 
 /**
  * Initialize tool registry and register all built-in tools.
@@ -18,7 +18,7 @@ esp_err_t tool_registry_init(void);
 /**
  * Register a tool with the registry.
  */
-void tool_registry_register(const mimi_tool_t *tool);
+void tool_registry_register(const ottoclaw_tool_t *tool);
 
 /**
  * Get the pre-built tools JSON array string for the API request.

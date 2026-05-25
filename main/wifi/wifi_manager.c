@@ -1,5 +1,5 @@
 #include "wifi_manager.h"
-#include "mimi_config.h"
+#include "ottoclaw_config.h"
 
 #include <string.h>
 #include <inttypes.h>
@@ -44,19 +44,19 @@ static void event_handler(void *arg, esp_event_base_t event_base,
         if (disc) {
             ESP_LOGW(TAG, "Disconnected (reason=%d:%s)", disc->reason, wifi_reason_to_str(disc->reason));
         }
-        if (s_retry_count < MIMI_WIFI_MAX_RETRY) {
+        if (s_retry_count < OTTOCLAW_WIFI_MAX_RETRY) {
             /* Exponential backoff: 1s, 2s, 4s, 8s, ... capped at 30s */
-            uint32_t delay_ms = MIMI_WIFI_RETRY_BASE_MS << s_retry_count;
-            if (delay_ms > MIMI_WIFI_RETRY_MAX_MS) {
-                delay_ms = MIMI_WIFI_RETRY_MAX_MS;
+            uint32_t delay_ms = OTTOCLAW_WIFI_RETRY_BASE_MS << s_retry_count;
+            if (delay_ms > OTTOCLAW_WIFI_RETRY_MAX_MS) {
+                delay_ms = OTTOCLAW_WIFI_RETRY_MAX_MS;
             }
             ESP_LOGW(TAG, "Disconnected, retry %d/%d in %" PRIu32 "ms",
-                     s_retry_count + 1, MIMI_WIFI_MAX_RETRY, delay_ms);
+                     s_retry_count + 1, OTTOCLAW_WIFI_MAX_RETRY, delay_ms);
             vTaskDelay(pdMS_TO_TICKS(delay_ms));
             esp_wifi_connect();
             s_retry_count++;
         } else {
-            ESP_LOGE(TAG, "Failed to connect after %d retries", MIMI_WIFI_MAX_RETRY);
+            ESP_LOGE(TAG, "Failed to connect after %d retries", OTTOCLAW_WIFI_MAX_RETRY);
             xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
         }
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
@@ -97,14 +97,14 @@ esp_err_t wifi_manager_start(void)
     bool found = false;
 
     /* Use build-time secrets */
-    if (MIMI_SECRET_WIFI_SSID[0] != '\0') {
-        strncpy((char *)wifi_cfg.sta.ssid, MIMI_SECRET_WIFI_SSID, sizeof(wifi_cfg.sta.ssid) - 1);
-        strncpy((char *)wifi_cfg.sta.password, MIMI_SECRET_WIFI_PASS, sizeof(wifi_cfg.sta.password) - 1);
+    if (OTTOCLAW_SECRET_WIFI_SSID[0] != '\0') {
+        strncpy((char *)wifi_cfg.sta.ssid, OTTOCLAW_SECRET_WIFI_SSID, sizeof(wifi_cfg.sta.ssid) - 1);
+        strncpy((char *)wifi_cfg.sta.password, OTTOCLAW_SECRET_WIFI_PASS, sizeof(wifi_cfg.sta.password) - 1);
         found = true;
     }
 
     if (!found) {
-        ESP_LOGW(TAG, "No WiFi credentials configured in mimi_secrets.h");
+        ESP_LOGW(TAG, "No WiFi credentials configured in ottoclaw_secrets.h");
         return ESP_ERR_NOT_FOUND;
     }
 
@@ -142,9 +142,9 @@ const char *wifi_manager_get_ip(void)
 esp_err_t wifi_manager_set_credentials(const char *ssid, const char *password)
 {
     nvs_handle_t nvs;
-    ESP_ERROR_CHECK(nvs_open(MIMI_NVS_WIFI, NVS_READWRITE, &nvs));
-    ESP_ERROR_CHECK(nvs_set_str(nvs, MIMI_NVS_KEY_SSID, ssid));
-    ESP_ERROR_CHECK(nvs_set_str(nvs, MIMI_NVS_KEY_PASS, password));
+    ESP_ERROR_CHECK(nvs_open(OTTOCLAW_NVS_WIFI, NVS_READWRITE, &nvs));
+    ESP_ERROR_CHECK(nvs_set_str(nvs, OTTOCLAW_NVS_KEY_SSID, ssid));
+    ESP_ERROR_CHECK(nvs_set_str(nvs, OTTOCLAW_NVS_KEY_PASS, password));
     ESP_ERROR_CHECK(nvs_commit(nvs));
     nvs_close(nvs);
     ESP_LOGI(TAG, "WiFi credentials saved for SSID: %s", ssid);
@@ -222,14 +222,14 @@ void wifi_manager_scan_and_print(void)
 bool wifi_manager_has_saved_credentials(void)
 {
     /* Check build-time secret first */
-    if (MIMI_SECRET_WIFI_SSID[0] != '\0') return true;
+    if (OTTOCLAW_SECRET_WIFI_SSID[0] != '\0') return true;
 
     /* Check NVS */
     char ssid[64] = {0};
     size_t len = sizeof(ssid);
     nvs_handle_t h;
-    if (nvs_open(MIMI_NVS_WIFI, NVS_READONLY, &h) != ESP_OK) return false;
-    esp_err_t err = nvs_get_str(h, MIMI_NVS_KEY_SSID, ssid, &len);
+    if (nvs_open(OTTOCLAW_NVS_WIFI, NVS_READONLY, &h) != ESP_OK) return false;
+    esp_err_t err = nvs_get_str(h, OTTOCLAW_NVS_KEY_SSID, ssid, &len);
     nvs_close(h);
     return (err == ESP_OK && ssid[0] != '\0');
 }
@@ -243,17 +243,17 @@ esp_err_t wifi_manager_start_from_nvs(void)
     char ssid[64] = {0}, pass[64] = {0};
     size_t ssid_len = sizeof(ssid), pass_len = sizeof(pass);
     nvs_handle_t h;
-    if (nvs_open(MIMI_NVS_WIFI, NVS_READONLY, &h) == ESP_OK) {
-        if (nvs_get_str(h, MIMI_NVS_KEY_SSID, ssid, &ssid_len) == ESP_OK && ssid[0]) {
-            nvs_get_str(h, MIMI_NVS_KEY_PASS, pass, &pass_len);
+    if (nvs_open(OTTOCLAW_NVS_WIFI, NVS_READONLY, &h) == ESP_OK) {
+        if (nvs_get_str(h, OTTOCLAW_NVS_KEY_SSID, ssid, &ssid_len) == ESP_OK && ssid[0]) {
+            nvs_get_str(h, OTTOCLAW_NVS_KEY_PASS, pass, &pass_len);
             found = true;
         }
         nvs_close(h);
     }
 
-    if (!found && MIMI_SECRET_WIFI_SSID[0] != '\0') {
-        strncpy(ssid, MIMI_SECRET_WIFI_SSID, sizeof(ssid) - 1);
-        strncpy(pass, MIMI_SECRET_WIFI_PASS, sizeof(pass) - 1);
+    if (!found && OTTOCLAW_SECRET_WIFI_SSID[0] != '\0') {
+        strncpy(ssid, OTTOCLAW_SECRET_WIFI_SSID, sizeof(ssid) - 1);
+        strncpy(pass, OTTOCLAW_SECRET_WIFI_PASS, sizeof(pass) - 1);
         found = true;
     }
 

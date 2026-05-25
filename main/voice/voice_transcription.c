@@ -1,5 +1,5 @@
 #include "voice_transcription.h"
-#include "mimi_config.h"
+#include "ottoclaw_config.h"
 #include "proxy/http_proxy.h"
 
 #include <string.h>
@@ -212,13 +212,13 @@ static esp_err_t transcribe_via_http(const uint8_t *audio_data, size_t audio_len
 esp_err_t voice_transcription_init(void)
 {
     nvs_handle_t nvs;
-    esp_err_t err = nvs_open(MIMI_NVS_LLM, NVS_READONLY, &nvs);
+    esp_err_t err = nvs_open(OTTOCLAW_NVS_LLM, NVS_READONLY, &nvs);
     if (err == ESP_OK) {
         size_t len = sizeof(s_api_key);
-        nvs_get_str(nvs, MIMI_NVS_KEY_API_KEY, s_api_key, &len);
+        nvs_get_str(nvs, OTTOCLAW_NVS_KEY_API_KEY, s_api_key, &len);
         
         len = sizeof(s_base_url);
-        nvs_get_str(nvs, MIMI_NVS_KEY_WHISPER_BASE_URL, s_base_url, &len);
+        nvs_get_str(nvs, OTTOCLAW_NVS_KEY_WHISPER_BASE_URL, s_base_url, &len);
         
         nvs_close(nvs);
     }
@@ -292,9 +292,9 @@ esp_err_t voice_set_api_key(const char *api_key)
     s_api_key[sizeof(s_api_key) - 1] = '\0';
 
     nvs_handle_t nvs;
-    esp_err_t err = nvs_open(MIMI_NVS_LLM, NVS_READWRITE, &nvs);
+    esp_err_t err = nvs_open(OTTOCLAW_NVS_LLM, NVS_READWRITE, &nvs);
     if (err == ESP_OK) {
-        nvs_set_str(nvs, MIMI_NVS_KEY_API_KEY, s_api_key);
+        nvs_set_str(nvs, OTTOCLAW_NVS_KEY_API_KEY, s_api_key);
         nvs_commit(nvs);
         nvs_close(nvs);
     }
@@ -313,9 +313,9 @@ esp_err_t voice_set_base_url(const char *base_url)
     s_base_url[sizeof(s_base_url) - 1] = '\0';
 
     nvs_handle_t nvs;
-    esp_err_t err = nvs_open(MIMI_NVS_LLM, NVS_READWRITE, &nvs);
+    esp_err_t err = nvs_open(OTTOCLAW_NVS_LLM, NVS_READWRITE, &nvs);
     if (err == ESP_OK) {
-        nvs_set_str(nvs, MIMI_NVS_KEY_WHISPER_BASE_URL, s_base_url);
+        nvs_set_str(nvs, OTTOCLAW_NVS_KEY_WHISPER_BASE_URL, s_base_url);
         nvs_commit(nvs);
         nvs_close(nvs);
     }

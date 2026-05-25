@@ -1,16 +1,16 @@
 /*
- * MiaomiaoClaw Configuration Portal
+ * OttoClaw Configuration Portal
  *
  * Starts an AP + HTTP server for web-based device configuration.
  * Serves setup.html and provides JSON REST APIs for all settings.
  *
- * AP SSID: "MiaomiaoClaw-XXXX" (last 4 hex of MAC, no password)
+ * AP SSID: "OttoClaw-XXXX" (last 4 hex of MAC, no password)
  * HTTP port: 80
  * AP IP: 192.168.4.1
  */
 
 #include "config_portal.h"
-#include "mimi_config.h"
+#include "ottoclaw_config.h"
 #include "lcd/lcd_display.h"
 #include "otto/otto_movements.h"
 
@@ -45,7 +45,7 @@ static char           s_ap_ssid[32] = "";
 #define PORTAL_DONE_BIT BIT0
 static EventGroupHandle_t s_done_eg;
 
-/* Reference to Otto robot (defined in mimi.c) */
+/* Reference to Otto robot (defined in ottoclaw.c) */
 extern otto_t g_otto;
 
 /* ------------------------------------------------------------------ */
@@ -116,19 +116,21 @@ static esp_err_t handle_status(httpd_req_t *req)
     char dt_key[64]={0}, dt_secret[64]={0};
     char proxy_host[64]={0}, proxy_port[8]={0};
     char search_key[64]={0};
+    char bailian_app_id[64]={0};
 
-    nvs_safe_str(MIMI_NVS_WIFI,     MIMI_NVS_KEY_SSID,            ssid,       sizeof(ssid));
-    nvs_safe_str(MIMI_NVS_LLM,      MIMI_NVS_KEY_PROVIDER,        provider,   sizeof(provider));
-    nvs_safe_str(MIMI_NVS_LLM,      MIMI_NVS_KEY_MODEL,           model,      sizeof(model));
-    nvs_safe_str(MIMI_NVS_LLM,      MIMI_NVS_KEY_BASE_URL,        base_url,   sizeof(base_url));
-    nvs_safe_str(MIMI_NVS_DINGTALK, MIMI_NVS_KEY_DINGTALK_KEY,    dt_key,     sizeof(dt_key));
-    nvs_safe_str(MIMI_NVS_DINGTALK, MIMI_NVS_KEY_DINGTALK_SECRET, dt_secret,  sizeof(dt_secret));
-    nvs_safe_str(MIMI_NVS_PROXY,    MIMI_NVS_KEY_PROXY_HOST,      proxy_host, sizeof(proxy_host));
-    nvs_safe_str(MIMI_NVS_PROXY,    MIMI_NVS_KEY_PROXY_PORT,      proxy_port, sizeof(proxy_port));
-    nvs_safe_str(MIMI_NVS_SEARCH,   MIMI_NVS_KEY_SEARCH_KEY,      search_key, sizeof(search_key));
+    nvs_safe_str(OTTOCLAW_NVS_WIFI,     OTTOCLAW_NVS_KEY_SSID,            ssid,       sizeof(ssid));
+    nvs_safe_str(OTTOCLAW_NVS_LLM,      OTTOCLAW_NVS_KEY_PROVIDER,        provider,   sizeof(provider));
+    nvs_safe_str(OTTOCLAW_NVS_LLM,      OTTOCLAW_NVS_KEY_MODEL,           model,      sizeof(model));
+    nvs_safe_str(OTTOCLAW_NVS_LLM,      OTTOCLAW_NVS_KEY_BASE_URL,        base_url,   sizeof(base_url));
+    nvs_safe_str(OTTOCLAW_NVS_DINGTALK, OTTOCLAW_NVS_KEY_DINGTALK_KEY,    dt_key,     sizeof(dt_key));
+    nvs_safe_str(OTTOCLAW_NVS_DINGTALK, OTTOCLAW_NVS_KEY_DINGTALK_SECRET, dt_secret,  sizeof(dt_secret));
+    nvs_safe_str(OTTOCLAW_NVS_PROXY,    OTTOCLAW_NVS_KEY_PROXY_HOST,      proxy_host, sizeof(proxy_host));
+    nvs_safe_str(OTTOCLAW_NVS_PROXY,    OTTOCLAW_NVS_KEY_PROXY_PORT,      proxy_port, sizeof(proxy_port));
+    nvs_safe_str(OTTOCLAW_NVS_SEARCH,   OTTOCLAW_NVS_KEY_SEARCH_KEY,      search_key, sizeof(search_key));
+    nvs_safe_str(OTTOCLAW_NVS_SEARCH,   OTTOCLAW_NVS_KEY_BAILIAN_APP_ID,  bailian_app_id, sizeof(bailian_app_id));
 
-    const char *provider_value = provider[0] ? provider : MIMI_LLM_PROVIDER_DEFAULT;
-    const char *model_value    = model[0]    ? model    : MIMI_LLM_DEFAULT_MODEL;
+    const char *provider_value = provider[0] ? provider : OTTOCLAW_LLM_PROVIDER_DEFAULT;
+    const char *model_value    = model[0]    ? model    : OTTOCLAW_LLM_DEFAULT_MODEL;
     bool wifi_configured       = ssid[0] != '\0';
     bool llm_configured        = provider_value[0] != '\0';
     bool dingtalk_configured   = dt_key[0] != '\0' && dt_secret[0] != '\0';
@@ -143,7 +145,7 @@ static esp_err_t handle_status(httpd_req_t *req)
 
     cJSON_AddBoolToObject(root, "ok", true);
     cJSON_AddBoolToObject(root, "complete", complete);
-    cJSON_AddStringToObject(root, "ap_ssid", s_ap_ssid[0] ? s_ap_ssid : "MiaomiaoClaw");
+    cJSON_AddStringToObject(root, "ap_ssid", s_ap_ssid[0] ? s_ap_ssid : "OttoClaw");
 
     cJSON_AddBoolToObject(wifi, "configured", wifi_configured);
     cJSON_AddStringToObject(wifi, "ssid", ssid);
@@ -162,6 +164,7 @@ static esp_err_t handle_status(httpd_req_t *req)
 
     cJSON_AddBoolToObject(search, "configured", search_key[0] != '\0');
     cJSON_AddStringToObject(search, "key", search_key);
+    cJSON_AddStringToObject(search, "bailian_app_id", bailian_app_id);
 
     char *json = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
@@ -262,8 +265,8 @@ static esp_err_t handle_wifi_connect(httpd_req_t *req)
     }
     if (!pass) pass = "";
 
-    nvs_write_str(MIMI_NVS_WIFI, MIMI_NVS_KEY_SSID, ssid);
-    nvs_write_str(MIMI_NVS_WIFI, MIMI_NVS_KEY_PASS,  pass);
+    nvs_write_str(OTTOCLAW_NVS_WIFI, OTTOCLAW_NVS_KEY_SSID, ssid);
+    nvs_write_str(OTTOCLAW_NVS_WIFI, OTTOCLAW_NVS_KEY_PASS,  pass);
     cJSON_Delete(root);
 
     ESP_LOGI(TAG, "WiFi credentials saved: %s", ssid);
@@ -286,10 +289,10 @@ static esp_err_t handle_llm_config(httpd_req_t *req)
     const char *provider = cJSON_GetStringValue(cJSON_GetObjectItem(root, "provider"));
     const char *base_url = cJSON_GetStringValue(cJSON_GetObjectItem(root, "base_url"));
 
-    if (api_key  && api_key[0])  nvs_write_str(MIMI_NVS_LLM, MIMI_NVS_KEY_API_KEY,  api_key);
-    if (model    && model[0])    nvs_write_str(MIMI_NVS_LLM, MIMI_NVS_KEY_MODEL,    model);
-    if (provider && provider[0]) nvs_write_str(MIMI_NVS_LLM, MIMI_NVS_KEY_PROVIDER, provider);
-    if (base_url)                nvs_write_str(MIMI_NVS_LLM, MIMI_NVS_KEY_BASE_URL, base_url);
+    if (api_key  && api_key[0])  nvs_write_str(OTTOCLAW_NVS_LLM, OTTOCLAW_NVS_KEY_API_KEY,  api_key);
+    if (model    && model[0])    nvs_write_str(OTTOCLAW_NVS_LLM, OTTOCLAW_NVS_KEY_MODEL,    model);
+    if (provider && provider[0]) nvs_write_str(OTTOCLAW_NVS_LLM, OTTOCLAW_NVS_KEY_PROVIDER, provider);
+    if (base_url)                nvs_write_str(OTTOCLAW_NVS_LLM, OTTOCLAW_NVS_KEY_BASE_URL, base_url);
 
     cJSON_Delete(root);
     ESP_LOGI(TAG, "LLM config saved");
@@ -310,8 +313,8 @@ static esp_err_t handle_dingtalk_config(httpd_req_t *req)
     const char *app_key    = cJSON_GetStringValue(cJSON_GetObjectItem(root, "app_key"));
     const char *app_secret = cJSON_GetStringValue(cJSON_GetObjectItem(root, "app_secret"));
 
-    if (app_key    && app_key[0])    nvs_write_str(MIMI_NVS_DINGTALK, MIMI_NVS_KEY_DINGTALK_KEY,    app_key);
-    if (app_secret && app_secret[0]) nvs_write_str(MIMI_NVS_DINGTALK, MIMI_NVS_KEY_DINGTALK_SECRET, app_secret);
+    if (app_key    && app_key[0])    nvs_write_str(OTTOCLAW_NVS_DINGTALK, OTTOCLAW_NVS_KEY_DINGTALK_KEY,    app_key);
+    if (app_secret && app_secret[0]) nvs_write_str(OTTOCLAW_NVS_DINGTALK, OTTOCLAW_NVS_KEY_DINGTALK_SECRET, app_secret);
 
     cJSON_Delete(root);
     ESP_LOGI(TAG, "DingTalk config saved");
@@ -332,8 +335,8 @@ static esp_err_t handle_proxy_config(httpd_req_t *req)
     const char *host = cJSON_GetStringValue(cJSON_GetObjectItem(root, "host"));
     const char *port = cJSON_GetStringValue(cJSON_GetObjectItem(root, "port"));
 
-    if (host) nvs_write_str(MIMI_NVS_PROXY, MIMI_NVS_KEY_PROXY_HOST, host);
-    if (port) nvs_write_str(MIMI_NVS_PROXY, MIMI_NVS_KEY_PROXY_PORT, port);
+    if (host) nvs_write_str(OTTOCLAW_NVS_PROXY, OTTOCLAW_NVS_KEY_PROXY_HOST, host);
+    if (port) nvs_write_str(OTTOCLAW_NVS_PROXY, OTTOCLAW_NVS_KEY_PROXY_PORT, port);
 
     cJSON_Delete(root);
     ESP_LOGI(TAG, "Proxy config saved");
@@ -352,10 +355,12 @@ static esp_err_t handle_search_config(httpd_req_t *req)
     if (!root) return send_json(req, 200, "{\"ok\":false,\"msg\":\"invalid JSON\"}");
 
     const char *key = cJSON_GetStringValue(cJSON_GetObjectItem(root, "search_key"));
-    if (key) nvs_write_str(MIMI_NVS_SEARCH, MIMI_NVS_KEY_SEARCH_KEY, key);
+    const char *app_id = cJSON_GetStringValue(cJSON_GetObjectItem(root, "bailian_app_id"));
+    if (key) nvs_write_str(OTTOCLAW_NVS_SEARCH, OTTOCLAW_NVS_KEY_SEARCH_KEY, key);
+    if (app_id && app_id[0]) nvs_write_str(OTTOCLAW_NVS_SEARCH, OTTOCLAW_NVS_KEY_BAILIAN_APP_ID, app_id);
 
     cJSON_Delete(root);
-    return send_json(req, 200, "{\"ok\":true,\"msg\":\"Search key saved\"}");
+    return send_json(req, 200, "{\"ok\":true,\"msg\":\"Search config saved\"}");
 }
 
 /* ------------------------------------------------------------------ */
@@ -474,7 +479,7 @@ static esp_err_t handle_root(httpd_req_t *req)
 static const char SETUP_HTML[] =
 "<!DOCTYPE html><html lang='zh'><head><meta charset='UTF-8'>"
 "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-"<title>MiaomiaoClaw 配置</title>"
+"<title>OttoClaw 配置</title>"
 "<style>"
 "*{box-sizing:border-box;margin:0;padding:0}"
 "body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"
@@ -515,7 +520,7 @@ static const char SETUP_HTML[] =
 ".otto-btn:hover{border-color:#7eff7e;color:#7eff7e;background:#0a1a0a}"
 ".section-title{color:#7eb8ff;font-size:.85em;font-weight:600;margin-top:16px;margin-bottom:4px;border-bottom:1px solid #222;padding-bottom:4px}"
 "</style></head><body>"
-"<h1>🤖 MiaomiaoClaw<span>初始配置 · 配置完成后点「保存并重启」</span></h1>"
+"<h1>🤖 OttoClaw<span>初始配置 · 闪猫科技研发 · 配置完成后点「保存并重启」</span></h1>"
 "<div class='tabs'>"
 "<div class='tab active' onclick='showTab(\"wifi\")'>📡 WiFi</div>"
 "<div class='tab' onclick='showTab(\"llm\")'>🤖 大模型</div>"
@@ -570,9 +575,11 @@ static const char SETUP_HTML[] =
 "<label>代理 Host</label><input id='proxy-host' placeholder='192.168.1.100'>"
 "<label>代理 Port</label><input id='proxy-port' placeholder='7890'>"
 "<button class='btn btn-primary' style='margin-top:10px' onclick='saveProxy()'>💾 保存代理</button>"
-"<div class='section-title' style='margin-top:16px'>Brave 搜索</div>"
-"<label>Search API Key</label><input id='search-key' placeholder='BSA...'>"
-"<button class='btn btn-primary' style='margin-top:10px' onclick='saveSearch()'>💾 保存搜索Key</button>"
+"<div class='section-title' style='margin-top:16px'>搜索 (DashScope)</div>"
+"<label>搜索 API Key</label><input id='search-key' placeholder='sk-...'>"
+"<label>百炼搜索 App ID</label><input id='bailian-app-id' placeholder='758d9af4...'>"
+"<p style='color:#888;font-size:.75em;margin-top:2px'>阿里云百炼平台创建的搜索应用 ID，用于联网搜索功能</p>"
+"<button class='btn btn-primary' style='margin-top:10px' onclick='saveSearch()'>💾 保存搜索配置</button>"
 "<div id='other-status' class='status info'></div>"
 "</div>"
 
@@ -655,6 +662,7 @@ static const char SETUP_HTML[] =
 "document.getElementById('proxy-host').value=proxy.host||'';"
 "document.getElementById('proxy-port').value=proxy.port||'';"
 "document.getElementById('search-key').value=search.key||'';"
+"document.getElementById('bailian-app-id').value=search.bailian_app_id||'';"
 "}"
 
 "async function scanWifi(){"
@@ -701,8 +709,8 @@ static const char SETUP_HTML[] =
 "}"
 
 "async function saveSearch(){"
-"const r=await api('/api/search/config',{search_key:document.getElementById('search-key').value});"
-"setStatus('other-status',r&&r.ok,r?(r.msg||'搜索Key已保存'):'失败');"
+"const r=await api('/api/search/config',{search_key:document.getElementById('search-key').value,bailian_app_id:document.getElementById('bailian-app-id').value});"
+"setStatus('other-status',r&&r.ok,r?(r.msg||'搜索配置已保存'):'失败');"
 "}"
 
 "async function ottoAction(action,btn){"
@@ -782,7 +790,7 @@ static esp_err_t start_ap(void)
     /* Build SSID from MAC */
     uint8_t mac[6];
     esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP);
-    snprintf(s_ap_ssid, sizeof(s_ap_ssid), "MiaomiaoClaw-%02X%02X", mac[4], mac[5]);
+    snprintf(s_ap_ssid, sizeof(s_ap_ssid), "OttoClaw-%02X%02X", mac[4], mac[5]);
 
     ESP_LOGI(TAG, "Starting AP: %s", s_ap_ssid);
 
@@ -851,7 +859,7 @@ static void portal_task(void *arg)
     char portal_hint[128];
     snprintf(portal_hint, sizeof(portal_hint),
              "热点: %s\n访问 http://192.168.4.1 进入web配置面板",
-             s_ap_ssid[0] ? s_ap_ssid : "MiaomiaoClaw");
+             s_ap_ssid[0] ? s_ap_ssid : "OttoClaw");
     lcd_show_qr_overlay("http://192.168.4.1", portal_hint);
 
     /* Start HTTP */

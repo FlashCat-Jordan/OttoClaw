@@ -3,7 +3,7 @@
 #include "esp_err.h"
 
 /**
- * Initialize and start the WebSocket server on MIMI_WS_PORT.
+ * Initialize and start the WebSocket server on OTTOCLAW_WS_PORT.
  * Allows external clients to interact with the Agent via JSON messages.
  *
  * Protocol:

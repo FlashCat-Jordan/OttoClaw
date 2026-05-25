@@ -1,5 +1,5 @@
 #include "cron_service.h"
-#include "mimi_config.h"
+#include "ottoclaw_config.h"
 #include "bus/message_bus.h"
 #include <stdio.h>
 #include <string.h>
@@ -36,8 +36,8 @@ static void cron_timer_callback(TimerHandle_t timer)
 
     ESP_LOGI(TAG, "Executing cron task: %s", task->name);
 
-    mimi_msg_t msg;
-    strncpy(msg.channel, MIMI_CHAN_CRON, sizeof(msg.channel) - 1);
+    ottoclaw_msg_t msg;
+    strncpy(msg.channel, OTTOCLAW_CHAN_CRON, sizeof(msg.channel) - 1);
     strncpy(msg.chat_id, "system", sizeof(msg.chat_id) - 1);
     
     size_t prompt_len = strlen(task->prompt);

@@ -1,5 +1,5 @@
 #include "tools/tool_files.h"
-#include "mimi_config.h"
+#include "ottoclaw_config.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -223,7 +223,7 @@ esp_err_t tool_list_dir_execute(const char *input_json, char *output, size_t out
         }
     }
 
-    DIR *dir = opendir(MIMI_SPIFFS_BASE);
+    DIR *dir = opendir(OTTOCLAW_SPIFFS_BASE);
     if (!dir) {
         snprintf(output, output_size, "Error: cannot open /spiffs directory");
         cJSON_Delete(root);
@@ -237,7 +237,7 @@ esp_err_t tool_list_dir_execute(const char *input_json, char *output, size_t out
     while ((ent = readdir(dir)) != NULL && off < output_size - 1) {
         /* Build full path: SPIFFS entries are just filenames with embedded slashes */
         char full_path[512];
-        snprintf(full_path, sizeof(full_path), "%s/%s", MIMI_SPIFFS_BASE, ent->d_name);
+        snprintf(full_path, sizeof(full_path), "%s/%s", OTTOCLAW_SPIFFS_BASE, ent->d_name);
 
         if (prefix && strncmp(full_path, prefix, strlen(prefix)) != 0) {
             continue;

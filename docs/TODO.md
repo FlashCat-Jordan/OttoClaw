@@ -1,4 +1,4 @@
-# MiaomiaoClaw Optimization Roadmap
+# OttoClaw Optimization Roadmap
 
 > This backlog tracks the next useful optimization work for the current DingTalk + WebSocket + Config Portal fork.
 > It is **not** a Telegram parity checklist and does **not** treat OTA as an active goal.
@@ -39,7 +39,7 @@
 ### [ ] Strengthen startup/service gating
 - Make optional services more clearly conditional where appropriate.
 - Reduce unnecessary initialization work for disabled or unused features.
-- Keep `main/mimi.c` easier to reason about as the firmware grows.
+- Keep `main/ottoclaw.c` easier to reason about as the firmware grows.
 
 ### [ ] Continue prompt / memory / skills refinement
 - Build on existing `context_builder.c` and `skills.c`.
@@ -59,7 +59,7 @@
 - Reuse the existing channel + message bus architecture.
 
 ### [ ] More structured outbound/inbound metadata
-- Extend `mimi_msg_t` only if needed by future media, bridge, or richer session features.
+- Extend `ottoclaw_msg_t` only if needed by future media, bridge, or richer session features.
 - Avoid premature complexity.
 
 ### [ ] Session metadata improvements

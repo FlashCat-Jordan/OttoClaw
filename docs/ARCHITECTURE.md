@@ -1,4 +1,4 @@
-# MiaomiaoClaw Architecture
+# OttoClaw Architecture
 
 > ESP32-S3 AI Agent firmware in pure C / FreeRTOS, centered on DingTalk, WebSocket, Config Portal, local memory, and embodied device feedback.
 
@@ -12,7 +12,7 @@ DingTalk App / Web Client / Serial CLI
         │  DingTalk HTTP polling / WebSocket / USB serial
         ▼
 ┌────────────────────────────────────────────────────────────┐
-│                    ESP32-S3 (MiaomiaoClaw)                │
+│                    ESP32-S3 (OttoClaw)                │
 │                                                            │
 │  ┌──────────────┐   ┌──────────────┐   ┌────────────────┐  │
 │  │ DingTalk Bot │──▶│              │   │ Config Portal  │  │
@@ -95,7 +95,7 @@ If WiFi credentials exist and startup does not force portal mode:
 
 ```
 1. A message arrives from DingTalk or WebSocket.
-2. The channel module normalizes it into mimi_msg_t.
+2. The channel module normalizes it into ottoclaw_msg_t.
 3. The message is pushed into the inbound FreeRTOS queue.
 4. agent_loop.c pops the message and builds context:
    - bootstrap files from SPIFFS
@@ -122,13 +122,13 @@ If WiFi credentials exist and startup does not force portal mode:
 
 ```
 main/
-├── mimi.c                  App entry, startup orchestration, service lifecycle
-├── mimi_config.h           Global constants, SPIFFS paths, NVS keys, defaults
-├── mimi_secrets.h          Optional build-time defaults (gitignored)
-├── mimi_secrets.h.example  Template for build-time defaults
+├── ottoclaw.c                  App entry, startup orchestration, service lifecycle
+├── ottoclaw_config.h           Global constants, SPIFFS paths, NVS keys, defaults
+├── ottoclaw_secrets.h          Optional build-time defaults (gitignored)
+├── ottoclaw_secrets.h.example  Template for build-time defaults
 │
 ├── bus/
-│   ├── message_bus.h       mimi_msg_t and queue API
+│   ├── message_bus.h       ottoclaw_msg_t and queue API
 │   └── message_bus.c       inbound/outbound FreeRTOS queues
 │
 ├── wifi/
@@ -238,7 +238,7 @@ Session files store alternating user/assistant entries as JSONL records.
 
 Current configuration is **two-layered**:
 
-1. **Build-time defaults** from `mimi_secrets.h`
+1. **Build-time defaults** from `ottoclaw_secrets.h`
 2. **Runtime overrides** stored in NVS and edited via CLI or Config Portal
 
 This is the current model used by the firmware; configuration is not build-time-only.
@@ -313,7 +313,7 @@ Even if OTA-related code or partition history still exists in parts of the repos
 
 ## Key Source References
 
-- Startup orchestration: `main/mimi.c`
+- Startup orchestration: `main/ottoclaw.c`
 - Agent loop: `main/agent/agent_loop.c`
 - Context assembly: `main/agent/context_builder.c`
 - Tool registry: `main/tools/tool_registry.c`
@@ -321,4 +321,4 @@ Even if OTA-related code or partition history still exists in parts of the repos
 - WebSocket gateway: `main/gateway/ws_server.c`
 - Config portal: `main/config_portal/config_portal.c`
 - Skills loading: `main/skills/skills.c`
-- Runtime config constants: `main/mimi_config.h`
+- Runtime config constants: `main/ottoclaw_config.h`

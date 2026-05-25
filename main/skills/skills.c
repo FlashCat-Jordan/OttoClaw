@@ -1,5 +1,5 @@
 #include "skills.h"
-#include "mimi_config.h"
+#include "ottoclaw_config.h"
 #include <stdio.h>
 #include <string.h>
 #include <dirent.h>
@@ -68,9 +68,9 @@ esp_err_t skills_init(void)
 {
     skill_count = 0;
 
-    DIR *dir = opendir(MIMI_SPIFFS_SKILLS_DIR);
+    DIR *dir = opendir(OTTOCLAW_SPIFFS_SKILLS_DIR);
     if (!dir) {
-        ESP_LOGW(TAG, "Skills directory not found: %s", MIMI_SPIFFS_SKILLS_DIR);
+        ESP_LOGW(TAG, "Skills directory not found: %s", OTTOCLAW_SPIFFS_SKILLS_DIR);
         return ESP_ERR_NOT_FOUND;
     }
 
@@ -80,7 +80,7 @@ esp_err_t skills_init(void)
             const char *ext = strrchr(entry->d_name, '.');
             if (ext && strcasecmp(ext, ".md") == 0) {
                 char path[512];
-                int ret = snprintf(path, sizeof(path), "%s/%s", MIMI_SPIFFS_SKILLS_DIR, entry->d_name);
+                int ret = snprintf(path, sizeof(path), "%s/%s", OTTOCLAW_SPIFFS_SKILLS_DIR, entry->d_name);
                 if (ret > 0 && (size_t)ret < sizeof(path)) {
                     load_skill_file(path);
                 } else {

@@ -15,7 +15,7 @@ managed_components/
 main/assets/lang_config.h
 main/mmap_generate_emoji.h
 mmap_generate_*.h
-mimi_secrets.h
+ottoclaw_secrets.h
 
 # IDE / Editor
 .vscode/
@@ -28,7 +28,7 @@ mimi_secrets.h
 
 # Environment
 .env
-main/mimi_secrets.h
+main/ottoclaw_secrets.h
 
 # Cache / Compiled
 .cache

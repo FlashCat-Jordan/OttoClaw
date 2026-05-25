@@ -77,11 +77,11 @@ static esp_err_t tool_memory_append_today_execute(const char *input_json, char *
     }
 }
 
-static mimi_tool_t s_tools[MAX_TOOLS];
+static ottoclaw_tool_t s_tools[MAX_TOOLS];
 static int s_tool_count = 0;
 static char *s_tools_json = NULL;  /* cached JSON array string */
 
-void tool_registry_register(const mimi_tool_t *tool)
+void tool_registry_register(const ottoclaw_tool_t *tool)
 {
     if (s_tool_count >= MAX_TOOLS) {
         ESP_LOGE(TAG, "Tool registry full");
@@ -122,7 +122,7 @@ esp_err_t tool_registry_init(void)
     /* Register web_search */
     tool_web_search_init();
 
-    mimi_tool_t ws = {
+    ottoclaw_tool_t ws = {
         .name = "web_search",
         .description = "Search the web for current information. Use this when you need up-to-date facts, news, weather, or anything beyond your training data.",
         .input_schema_json =
@@ -134,7 +134,7 @@ esp_err_t tool_registry_init(void)
     tool_registry_register(&ws);
 
     /* Register get_current_time */
-    mimi_tool_t gt = {
+    ottoclaw_tool_t gt = {
         .name = "get_current_time",
         .description = "Get the current date and time. Also sets the system clock. Call this when you need to know what time or date it is.",
         .input_schema_json =
@@ -146,7 +146,7 @@ esp_err_t tool_registry_init(void)
     tool_registry_register(&gt);
 
     /* Register read_file */
-    mimi_tool_t rf = {
+    ottoclaw_tool_t rf = {
         .name = "read_file",
         .description = "Read a file from SPIFFS storage. Path must start with /spiffs/.",
         .input_schema_json =
@@ -158,7 +158,7 @@ esp_err_t tool_registry_init(void)
     tool_registry_register(&rf);
 
     /* Register write_file */
-    mimi_tool_t wf = {
+    ottoclaw_tool_t wf = {
         .name = "write_file",
         .description = "Write or overwrite a file on SPIFFS storage. Path must start with /spiffs/.",
         .input_schema_json =
@@ -171,7 +171,7 @@ esp_err_t tool_registry_init(void)
     tool_registry_register(&wf);
 
     /* Register edit_file */
-    mimi_tool_t ef = {
+    ottoclaw_tool_t ef = {
         .name = "edit_file",
         .description = "Find and replace text in a file on SPIFFS. Replaces first occurrence of old_string with new_string.",
         .input_schema_json =
@@ -185,7 +185,7 @@ esp_err_t tool_registry_init(void)
     tool_registry_register(&ef);
 
     /* Register list_dir */
-    mimi_tool_t ld = {
+    ottoclaw_tool_t ld = {
         .name = "list_dir",
         .description = "List files on SPIFFS storage, optionally filtered by path prefix.",
         .input_schema_json =
@@ -197,7 +197,7 @@ esp_err_t tool_registry_init(void)
     tool_registry_register(&ld);
 
     /* Register memory_read */
-    mimi_tool_t mr = {
+    ottoclaw_tool_t mr = {
         .name = "memory_read",
         .description = "Read the current contents of long-term memory (MEMORY.md). ALWAYS call this before memory_write to avoid overwriting existing memories.",
         .input_schema_json =
@@ -209,7 +209,7 @@ esp_err_t tool_registry_init(void)
     tool_registry_register(&mr);
 
     /* Register memory_write */
-    mimi_tool_t mw = {
+    ottoclaw_tool_t mw = {
         .name = "memory_write",
         .description = "Write content to long-term memory (MEMORY.md). Use this to persist important information that should be remembered across conversations.",
         .input_schema_json =
@@ -221,7 +221,7 @@ esp_err_t tool_registry_init(void)
     tool_registry_register(&mw);
 
     /* Register memory_append_today */
-    mimi_tool_t mat = {
+    ottoclaw_tool_t mat = {
         .name = "memory_append_today",
         .description = "Append a note to today's daily memory file (YYYY-MM-DD.md). Use this to log events, notes, or daily summaries.",
         .input_schema_json =
