@@ -230,7 +230,7 @@ void tool_otto_register(void) {
 
     ottoclaw_tool_t pose_tool = {
         .name = "self.otto.pose",
-        .description = "直接控制6个舵机到达指定角度（Servo Sequences Lite）。可以精确控制每个关节的位置，过渡到目标姿态。说'左手到45度、左脚到90度'这类指令时使用此工具。",
+        .description = "AI即兴创作动作工具(Servo Sequences Lite)。自主控制6个舵机到达任意角度，创造任何你能想象的动作姿态 — 求婚、拥抱、祈祷、跳舞姿势、情绪表达等。思考动作的身体姿态，然后设定每个关节角度。可以多次调用pose编排动作序列。",
         .input_schema_json = otto_pose_schema,
         .execute = tool_otto_pose_execute
     };
