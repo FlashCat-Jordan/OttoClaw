@@ -84,7 +84,7 @@ OttoClaw 不锁定任何平台，所有配置完全开放：
 - **DIY 套件（含全部组件，已烧录固件，40 分钟组装）** — [闪猫侠机器人 DIY 套件](https://e.tb.cn/h.SRfKOWrlDXV4kQR?tk=atRsf1poxdZ)
 - **PCB + BOM 开源文件** — 自己制作亦可：[立创开源硬件](https://oshwhub.com/txp666/ottorobot)
 - **3D 打印外壳 STL 文件** — [MakerWorld @shanmaotech](https://makerworld.com.cn/@shanmaotech)
-- **完整组装与使用教程** — [ottodiy.tech](https://ottodiy.tech)
+- **完整组装与使用教程** — [shanmaotech.cn/ottodiy](https://www.shanmaotech.cn/ottodiy/)
 
 ---
 

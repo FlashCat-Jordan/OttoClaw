@@ -74,7 +74,7 @@ This firmware runs on the **Shanmao official dev board**. Hardware is also open-
 - **DIY kit (all components included, pre-flashed, 40 min assembly)** — [Shanmao Robot DIY Kit](https://e.tb.cn/h.SRfKOWrlDXV4kQR?tk=atRsf1poxdZ)
 - **PCB + BOM open-source files** — Self-manufacturing also possible: [LCSC Open Hardware](https://oshwhub.com/txp666/ottorobot)
 - **3D-printed shell STL files** — [MakerWorld @shanmaotech](https://makerworld.com.cn/@shanmaotech)
-- **Complete assembly & usage guide** — [ottodiy.tech](https://ottodiy.tech)
+- **Complete assembly & usage guide** — [shanmaotech.cn/ottodiy](https://www.shanmaotech.cn/ottodiy/)
 
 ---
 
