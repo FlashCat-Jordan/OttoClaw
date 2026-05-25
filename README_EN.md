@@ -66,6 +66,16 @@ OttoClaw locks nothing down. All configuration is fully open:
 
 USB powered, pure C / FreeRTOS, single ESP32-S3. No Linux, no Node.js, no bloated dependencies. 24/7 online at 0.5W, zero maintenance required.
 
+### Fully Open-Source Hardware
+
+This firmware runs on the **Shanmao-1 OttoRobot AI Edition official dev board**. Hardware is also fully open-source:
+
+- **PCB + BOM** — One-click order on LCSC open hardware platform: [oshwhub.com/txp666/ottorobot](https://oshwhub.com/txp666/ottorobot)
+- **3D-printed shell** — Free STL downloads at [MakerWorld @shanmaotech](https://makerworld.com.cn/@shanmaotech)
+- **Complete assembly guide** — From parts procurement to soldering, assembly, and flashing — 30 minutes to complete: [ottodiy.tech](https://ottodiy.tech)
+
+Full hardware documentation (9 chapters: product intro, capability comparison, parts guide, soldering tutorial, assembly guide, flashing guide, usage guide, remix projects, FAQ) at [Shanmao Open Robot Ecosystem](https://shanmaotech.cn/ottodiy/)
+
 ---
 
 ## Capabilities

@@ -76,6 +76,16 @@ OttoClaw 不锁定任何平台，所有配置完全开放：
 - 无 Linux、无 Node.js、无臃肿依赖
 - 24/7 在线，0.5W 功耗，无需维护
 
+### 硬件全栈开源
+
+本固件可运行于 **闪猫一号 OttoRobot AI 版官方开发板**。硬件部分同样开源：
+
+- **PCB + BOM** — 立创开源硬件平台一键下单：[oshwhub.com/txp666/ottorobot](https://oshwhub.com/txp666/ottorobot)
+- **3D 打印外壳** — STL 文件免费下载：[MakerWorld @shanmaotech](https://makerworld.com.cn/@shanmaotech)
+- **完整组装教程** — 从元器件采购到焊接、组装、烧录，30 分钟即可完成：[ottodiy.tech](https://ottodiy.tech)
+
+全套硬件开源文档（9 个章节：产品介绍、能力对比、采购指南、焊接教程、组装教程、烧录指南、使用说明、二次创作、常见问题）详见 [闪猫侠机器人开源生态](https://shanmaotech.cn/ottodiy/)。
+
 ---
 
 ## 功能概览
