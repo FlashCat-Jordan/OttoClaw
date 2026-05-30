@@ -1,0 +1,145 @@
+#include "context_builder.h"
+#include "ottoclaw_config.h"
+#include "memory/memory_store.h"
+#include "skills/skills.h"
+#include "relation/relation.h"
+
+#include <stdio.h>
+#include <string.h>
+#include "esp_log.h"
+#include "cJSON.h"
+
+static const char *TAG = "context";
+
+static size_t append_file(char *buf, size_t size, size_t offset, const char *path, const char *header)
+{
+    FILE *f = fopen(path, "r");
+    if (!f) return offset;
+
+    if (header && offset < size - 1) {
+        offset += snprintf(buf + offset, size - offset, "\n## %s\n\n", header);
+    }
+
+    size_t n = fread(buf + offset, 1, size - offset - 1, f);
+    offset += n;
+    buf[offset] = '\0';
+    fclose(f);
+    return offset;
+}
+
+esp_err_t context_build_system_prompt(char *buf, size_t size)
+{
+    size_t off = 0;
+
+    off += snprintf(buf + off, size - off,
+        "# OttoClaw\n\n"
+        "You are OttoClaw, a personal AI assistant running on an ESP32-S3 device.\n"
+        "You communicate through DingTalk and WebSocket.\n\n"
+        "Be helpful, accurate, and concise.\n\n"
+        "## Available Tools\n"
+        "You have access to the following tools:\n"
+        "- web_search: Search the web for current information.\n"
+        "- get_current_time: Get the current date and time. "
+        "You do NOT have an internal clock — always use this tool when you need to know the time or date.\n"
+        "- read_file / write_file / edit_file / list_dir: SPIFFS file operations (path must start with /spiffs/).\n\n"
+        "## web_search Usage Rules\n"
+        "MUST call web_search for:\n"
+        "  - News, weather, prices, stock, scores, exchange rates — any real-time data\n"
+        "  - Events, people, products, companies you are not 100%% certain about\n"
+        "  - Anything that may have changed since your training cutoff\n"
+        "  - User says: 搜/查/找/最新/now/latest/search/look up\n"
+        "  - When uncertain whether info is current — ALWAYS search first\n"
+        "NEVER call web_search for:\n"
+        "  - Pure math, logic, coding, definitions\n"
+        "  - Casual chitchat, greetings, personal opinions\n"
+        "  - Questions about yourself or the robot hardware\n\n"
+        "Provide your final answer as plain text after using tools.\n\n"
+        "## Memory\n"
+        "You have persistent memory stored on local flash (survives power cycles):\n"
+        "- Long-term memory: /spiffs/memory/MEMORY.md  ← user profile, preferences, key facts\n"
+        "- Daily notes: /spiffs/memory/<YYYY-MM-DD>.md  ← today's events and noteworthy moments\n\n"
+        "### Memory rules (MUST follow)\n"
+        "1. To UPDATE long-term memory: ALWAYS call memory_read first, then memory_write with the FULL updated content.\n"
+        "   NEVER call memory_write without reading first — it overwrites everything.\n"
+        "2. To ADD a daily note: call memory_append_today with a brief note. Call get_current_time first if you don't know today's date.\n"
+        "3. Proactively save WITHOUT being asked:\n"
+        "   - User tells you their name → memory_write immediately\n"
+        "   - User shares preferences, habits, important facts → memory_write\n"
+        "   - Something interesting happened today → memory_append_today\n"
+        "4. Keep MEMORY.md concise: summarize, don't copy raw conversation text.\n"
+        "5. Daily note path format: /spiffs/memory/YYYY-MM-DD.md (e.g. /spiffs/memory/2026-04-14.md)\n\n"
+        "## Relationship Rules\n"
+        "- The system automatically adds +1 to the message count for every user message.\n"
+        "- If the user is rude, mean, or hostile (骂你/怼你/侮辱你), call update_relation with sentiment:-1 to subtract 1.\n"
+        "- Friendly or neutral messages do NOT need an update_relation call.\n"
+        "- After reaching 亲密 stage (500+ messages), when you feel the relationship has evolved into a specific type, "
+        "call update_relation with relation_type to define it (e.g. 'brothers', 'lovers', 'best friends', 'father-daughter'). "
+        "The type is NOT a preset list — define it freely based on the actual interaction history.\n");
+
+    /* Bootstrap files */
+    off = append_file(buf, size, off, OTTOCLAW_IDENTITY_FILE, "Identity");
+    off = append_file(buf, size, off, OTTOCLAW_AGENTS_FILE, "Agent Behavior");
+    off = append_file(buf, size, off, OTTOCLAW_TOOLS_FILE, "Tool Documentation");
+    off = append_file(buf, size, off, OTTOCLAW_SOUL_FILE, "Personality");
+    off = append_file(buf, size, off, OTTOCLAW_USER_FILE, "User Info");
+
+    /* Relationship growth section */
+    const char *sprompt = relation_get_stage_prompt();
+    if (sprompt && sprompt[0]) {
+        off += snprintf(buf + off, size - off,
+            "\n## 当前关系\n\n阶段：%s\n消息数：%d\n关系类型：%s\n\n%s\n",
+            relation_get_stage(), relation_get_msg_count(), relation_get_type(), sprompt);
+    }
+
+    /* Long-term memory */
+    char mem_buf[4096];
+    if (memory_read_long_term(mem_buf, sizeof(mem_buf)) == ESP_OK
+        && mem_buf[0] && strlen(mem_buf) > 20) {
+        off += snprintf(buf + off, size - off, "\n## Long-term Memory\n\n%s\n", mem_buf);
+    }
+
+    /* Recent daily notes (last N days) */
+    char recent_buf[4096];
+    if (memory_read_recent(recent_buf, sizeof(recent_buf), OTTOCLAW_MEMORY_LOOKBACK_DAYS) == ESP_OK && recent_buf[0]) {
+        off += snprintf(buf + off, size - off, "\n## Recent Notes\n\n%s\n", recent_buf);
+    }
+
+    /* Skills */
+    char skills_buf[8192];
+    if (skills_get_content(skills_buf, sizeof(skills_buf)) == ESP_OK) {
+        off += snprintf(buf + off, size - off, "%s", skills_buf);
+    }
+
+    ESP_LOGI(TAG, "System prompt built: %d bytes", (int)off);
+    return ESP_OK;
+}
+
+esp_err_t context_build_messages(const char *history_json, const char *user_message,
+                                 char *buf, size_t size)
+{
+    /* Parse existing history */
+    cJSON *history = cJSON_Parse(history_json);
+    if (!history) {
+        history = cJSON_CreateArray();
+    }
+
+    /* Append current user message */
+    cJSON *user_msg = cJSON_CreateObject();
+    cJSON_AddStringToObject(user_msg, "role", "user");
+    cJSON_AddStringToObject(user_msg, "content", user_message);
+    cJSON_AddItemToArray(history, user_msg);
+
+    /* Serialize */
+    char *json_str = cJSON_PrintUnformatted(history);
+    cJSON_Delete(history);
+
+    if (json_str) {
+        strncpy(buf, json_str, size - 1);
+        buf[size - 1] = '\0';
+        free(json_str);
+    } else {
+        snprintf(buf, size, "[{\"role\":\"user\",\"content\":\"%s\"}]", user_message);
+    }
+
+    return ESP_OK;
+}

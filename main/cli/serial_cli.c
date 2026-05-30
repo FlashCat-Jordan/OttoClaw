@@ -1,0 +1,555 @@
+#include "serial_cli.h"
+#include "ottoclaw_config.h"
+#include "wifi/wifi_manager.h"
+#include "dingtalk/dingtalk_bot.h"
+#include "llm/llm_proxy.h"
+#include "memory/memory_store.h"
+#include "memory/session_mgr.h"
+#include "proxy/http_proxy.h"
+#include "tools/tool_web_search.h"
+
+#include <string.h>
+#include <stdio.h>
+#include "esp_log.h"
+#include "esp_console.h"
+#include "esp_system.h"
+#include "esp_heap_caps.h"
+#include "nvs_flash.h"
+#include "nvs.h"
+#include "argtable3/argtable3.h"
+
+static const char *TAG = "cli";
+
+/* --- wifi_set command --- */
+static struct {
+    struct arg_str *ssid;
+    struct arg_str *password;
+    struct arg_end *end;
+} wifi_set_args;
+
+static int cmd_wifi_set(int argc, char **argv)
+{
+    int nerrors = arg_parse(argc, argv, (void **)&wifi_set_args);
+    if (nerrors != 0) {
+        arg_print_errors(stderr, wifi_set_args.end, argv[0]);
+        return 1;
+    }
+    wifi_manager_set_credentials(wifi_set_args.ssid->sval[0],
+                                  wifi_set_args.password->sval[0]);
+    printf("WiFi credentials saved. Restart to apply.\n");
+    return 0;
+}
+
+/* --- wifi_status command --- */
+static int cmd_wifi_status(int argc, char **argv)
+{
+    printf("WiFi connected: %s\n", wifi_manager_is_connected() ? "yes" : "no");
+    printf("IP: %s\n", wifi_manager_get_ip());
+    return 0;
+}
+
+/* --- set_dingtalk_credentials command --- */
+static struct {
+    struct arg_str *app_key;
+    struct arg_str *app_secret;
+    struct arg_end *end;
+} dingtalk_creds_args;
+
+static int cmd_set_dingtalk_credentials(int argc, char **argv)
+{
+    int nerrors = arg_parse(argc, argv, (void **)&dingtalk_creds_args);
+    if (nerrors != 0) {
+        arg_print_errors(stderr, dingtalk_creds_args.end, argv[0]);
+        return 1;
+    }
+    dingtalk_set_credentials(dingtalk_creds_args.app_key->sval[0],
+                             dingtalk_creds_args.app_secret->sval[0]);
+    printf("DingTalk credentials saved.\n");
+    return 0;
+}
+
+/* --- set_api_key command --- */
+static struct {
+    struct arg_str *key;
+    struct arg_end *end;
+} api_key_args;
+
+static int cmd_set_api_key(int argc, char **argv)
+{
+    int nerrors = arg_parse(argc, argv, (void **)&api_key_args);
+    if (nerrors != 0) {
+        arg_print_errors(stderr, api_key_args.end, argv[0]);
+        return 1;
+    }
+    llm_set_api_key(api_key_args.key->sval[0]);
+    printf("API key saved.\n");
+    return 0;
+}
+
+/* --- set_model command --- */
+static struct {
+    struct arg_str *model;
+    struct arg_end *end;
+} model_args;
+
+static int cmd_set_model(int argc, char **argv)
+{
+    int nerrors = arg_parse(argc, argv, (void **)&model_args);
+    if (nerrors != 0) {
+        arg_print_errors(stderr, model_args.end, argv[0]);
+        return 1;
+    }
+    llm_set_model(model_args.model->sval[0]);
+    printf("Model set.\n");
+    return 0;
+}
+
+/* --- set_model_provider command --- */
+static struct {
+    struct arg_str *provider;
+    struct arg_end *end;
+} provider_args;
+
+static int cmd_set_model_provider(int argc, char **argv)
+{
+    int nerrors = arg_parse(argc, argv, (void **)&provider_args);
+    if (nerrors != 0) {
+        arg_print_errors(stderr, provider_args.end, argv[0]);
+        return 1;
+    }
+    llm_set_provider(provider_args.provider->sval[0]);
+    printf("Model provider set.\n");
+    return 0;
+}
+
+/* --- memory_read command --- */
+static int cmd_memory_read(int argc, char **argv)
+{
+    char *buf = malloc(4096);
+    if (!buf) {
+        printf("Out of memory.\n");
+        return 1;
+    }
+    if (memory_read_long_term(buf, 4096) == ESP_OK && buf[0]) {
+        printf("=== MEMORY.md ===\n%s\n=================\n", buf);
+    } else {
+        printf("MEMORY.md is empty or not found.\n");
+    }
+    free(buf);
+    return 0;
+}
+
+/* --- memory_write command --- */
+static struct {
+    struct arg_str *content;
+    struct arg_end *end;
+} memory_write_args;
+
+static int cmd_memory_write(int argc, char **argv)
+{
+    int nerrors = arg_parse(argc, argv, (void **)&memory_write_args);
+    if (nerrors != 0) {
+        arg_print_errors(stderr, memory_write_args.end, argv[0]);
+        return 1;
+    }
+    memory_write_long_term(memory_write_args.content->sval[0]);
+    printf("MEMORY.md updated.\n");
+    return 0;
+}
+
+/* --- session_list command --- */
+static int cmd_session_list(int argc, char **argv)
+{
+    printf("Sessions:\n");
+    session_list();
+    return 0;
+}
+
+/* --- session_clear command --- */
+static struct {
+    struct arg_str *chat_id;
+    struct arg_end *end;
+} session_clear_args;
+
+static int cmd_session_clear(int argc, char **argv)
+{
+    int nerrors = arg_parse(argc, argv, (void **)&session_clear_args);
+    if (nerrors != 0) {
+        arg_print_errors(stderr, session_clear_args.end, argv[0]);
+        return 1;
+    }
+    if (session_clear(session_clear_args.chat_id->sval[0]) == ESP_OK) {
+        printf("Session cleared.\n");
+    } else {
+        printf("Session not found.\n");
+    }
+    return 0;
+}
+
+/* --- heap_info command --- */
+static int cmd_heap_info(int argc, char **argv)
+{
+    printf("Internal free: %d bytes\n",
+           (int)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+    printf("PSRAM free:    %d bytes\n",
+           (int)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+    printf("Total free:    %d bytes\n",
+           (int)esp_get_free_heap_size());
+    return 0;
+}
+
+/* --- set_proxy command --- */
+static struct {
+    struct arg_str *host;
+    struct arg_int *port;
+    struct arg_end *end;
+} proxy_args;
+
+static int cmd_set_proxy(int argc, char **argv)
+{
+    int nerrors = arg_parse(argc, argv, (void **)&proxy_args);
+    if (nerrors != 0) {
+        arg_print_errors(stderr, proxy_args.end, argv[0]);
+        return 1;
+    }
+    http_proxy_set(proxy_args.host->sval[0], (uint16_t)proxy_args.port->ival[0]);
+    printf("Proxy set. Restart to apply.\n");
+    return 0;
+}
+
+/* --- clear_proxy command --- */
+static int cmd_clear_proxy(int argc, char **argv)
+{
+    http_proxy_clear();
+    printf("Proxy cleared. Restart to apply.\n");
+    return 0;
+}
+
+/* --- set_search_key command --- */
+static struct {
+    struct arg_str *key;
+    struct arg_end *end;
+} search_key_args;
+
+static int cmd_set_search_key(int argc, char **argv)
+{
+    int nerrors = arg_parse(argc, argv, (void **)&search_key_args);
+    if (nerrors != 0) {
+        arg_print_errors(stderr, search_key_args.end, argv[0]);
+        return 1;
+    }
+    tool_web_search_set_key(search_key_args.key->sval[0]);
+    printf("Search API key saved.\n");
+    return 0;
+}
+
+/* --- set_bailian_app_id command --- */
+static struct {
+    struct arg_str *app_id;
+    struct arg_end *end;
+} bailian_app_id_args;
+
+static int cmd_set_bailian_app_id(int argc, char **argv)
+{
+    int nerrors = arg_parse(argc, argv, (void **)&bailian_app_id_args);
+    if (nerrors != 0) {
+        arg_print_errors(stderr, bailian_app_id_args.end, argv[0]);
+        return 1;
+    }
+    tool_web_search_set_bailian_app_id(bailian_app_id_args.app_id->sval[0]);
+    printf("Bailian App ID saved.\n");
+    return 0;
+}
+
+/* --- wifi_scan command --- */
+static int cmd_wifi_scan(int argc, char **argv)
+{
+    (void)argc;
+    (void)argv;
+    wifi_manager_scan_and_print();
+    return 0;
+}
+
+/* --- config_show command --- */
+static void print_config(const char *label, const char *ns, const char *key,
+                         const char *build_val, bool mask)
+{
+    char nvs_val[128] = {0};
+    const char *source = "not set";
+    const char *display = "(empty)";
+
+    /* NVS takes highest priority */
+    nvs_handle_t nvs;
+    if (nvs_open(ns, NVS_READONLY, &nvs) == ESP_OK) {
+        size_t len = sizeof(nvs_val);
+        if (nvs_get_str(nvs, key, nvs_val, &len) == ESP_OK && nvs_val[0]) {
+            source = "NVS";
+            display = nvs_val;
+        }
+        nvs_close(nvs);
+    }
+
+    /* Fall back to build-time value */
+    if (strcmp(source, "not set") == 0 && build_val[0] != '\0') {
+        source = "build";
+        display = build_val;
+    }
+
+    if (mask && strlen(display) > 6 && strcmp(display, "(empty)") != 0) {
+        printf("  %-14s: %.4s****  [%s]\n", label, display, source);
+    } else {
+        printf("  %-14s: %s  [%s]\n", label, display, source);
+    }
+}
+
+static int cmd_config_show(int argc, char **argv)
+{
+    printf("=== Current Configuration ===\n");
+    print_config("WiFi SSID",  OTTOCLAW_NVS_WIFI,   OTTOCLAW_NVS_KEY_SSID,     OTTOCLAW_SECRET_WIFI_SSID,  false);
+    print_config("WiFi Pass",  OTTOCLAW_NVS_WIFI,   OTTOCLAW_NVS_KEY_PASS,     OTTOCLAW_SECRET_WIFI_PASS,  true);
+    print_config("DingTalk AppKey",  OTTOCLAW_NVS_DINGTALK, OTTOCLAW_NVS_KEY_DINGTALK_KEY, OTTOCLAW_SECRET_DINGTALK_APP_KEY, false);
+    print_config("DingTalk Secret", OTTOCLAW_NVS_DINGTALK, OTTOCLAW_NVS_KEY_DINGTALK_SECRET, OTTOCLAW_SECRET_DINGTALK_APP_SECRET, true);
+    print_config("API Key",    OTTOCLAW_NVS_LLM,    OTTOCLAW_NVS_KEY_API_KEY,  OTTOCLAW_SECRET_API_KEY,    true);
+    print_config("Model",      OTTOCLAW_NVS_LLM,    OTTOCLAW_NVS_KEY_MODEL,    OTTOCLAW_SECRET_MODEL,      false);
+    print_config("Provider",   OTTOCLAW_NVS_LLM,    OTTOCLAW_NVS_KEY_PROVIDER, OTTOCLAW_SECRET_MODEL_PROVIDER, false);
+    print_config("Proxy Host", OTTOCLAW_NVS_PROXY,  OTTOCLAW_NVS_KEY_PROXY_HOST, OTTOCLAW_SECRET_PROXY_HOST, false);
+    print_config("Proxy Port", OTTOCLAW_NVS_PROXY,  OTTOCLAW_NVS_KEY_PROXY_PORT, OTTOCLAW_SECRET_PROXY_PORT, false);
+    print_config("Search Key", OTTOCLAW_NVS_SEARCH, OTTOCLAW_NVS_KEY_SEARCH_KEY, OTTOCLAW_SECRET_SEARCH_KEY, true);
+    print_config("Bailian App ID", OTTOCLAW_NVS_SEARCH, OTTOCLAW_NVS_KEY_BAILIAN_APP_ID, OTTOCLAW_SECRET_BAILIAN_APP_ID, false);
+    printf("============================\n");
+    return 0;
+}
+
+/* --- config_reset command --- */
+static int cmd_config_reset(int argc, char **argv)
+{
+    const char *namespaces[] = {
+        OTTOCLAW_NVS_WIFI, OTTOCLAW_NVS_DINGTALK, OTTOCLAW_NVS_LLM, OTTOCLAW_NVS_PROXY, OTTOCLAW_NVS_SEARCH
+    };
+    for (int i = 0; i < 5; i++) {
+        nvs_handle_t nvs;
+        if (nvs_open(namespaces[i], NVS_READWRITE, &nvs) == ESP_OK) {
+            nvs_erase_all(nvs);
+            nvs_commit(nvs);
+            nvs_close(nvs);
+        }
+    }
+    printf("All NVS config cleared. Build-time defaults will be used on restart.\n");
+    return 0;
+}
+
+/* --- restart command --- */
+static int cmd_restart(int argc, char **argv)
+{
+    printf("Restarting...\n");
+    esp_restart();
+    return 0;  /* unreachable */
+}
+
+esp_err_t serial_cli_init(void)
+{
+    esp_console_repl_t *repl = NULL;
+    esp_console_repl_config_t repl_config = ESP_CONSOLE_REPL_CONFIG_DEFAULT();
+    repl_config.prompt = "oc> ";
+    repl_config.max_cmdline_length = 256;
+
+    /* UART console (works with and without USB) */
+    esp_console_dev_uart_config_t hw_config =
+        ESP_CONSOLE_DEV_UART_CONFIG_DEFAULT();
+
+    ESP_ERROR_CHECK(esp_console_new_repl_uart(&hw_config, &repl_config, &repl));
+
+    /* Register commands */
+    esp_console_register_help_command();
+
+    /* wifi_set */
+    wifi_set_args.ssid = arg_str1(NULL, NULL, "<ssid>", "WiFi SSID");
+    wifi_set_args.password = arg_str1(NULL, NULL, "<password>", "WiFi password");
+    wifi_set_args.end = arg_end(2);
+    esp_console_cmd_t wifi_set_cmd = {
+        .command = "wifi_set",
+        .help = "Set WiFi SSID and password",
+        .func = &cmd_wifi_set,
+        .argtable = &wifi_set_args,
+    };
+    esp_console_cmd_register(&wifi_set_cmd);
+
+    /* wifi_status */
+    esp_console_cmd_t wifi_status_cmd = {
+        .command = "wifi_status",
+        .help = "Show WiFi connection status",
+        .func = &cmd_wifi_status,
+    };
+    esp_console_cmd_register(&wifi_status_cmd);
+
+    /* wifi_scan */
+    esp_console_cmd_t wifi_scan_cmd = {
+        .command = "wifi_scan",
+        .help = "Scan and list nearby WiFi APs",
+        .func = &cmd_wifi_scan,
+    };
+    esp_console_cmd_register(&wifi_scan_cmd);
+
+    /* set_dingtalk_credentials */
+    dingtalk_creds_args.app_key = arg_str1(NULL, NULL, "<app_key>", "DingTalk App Key");
+    dingtalk_creds_args.app_secret = arg_str1(NULL, NULL, "<app_secret>", "DingTalk App Secret");
+    dingtalk_creds_args.end = arg_end(2);
+    esp_console_cmd_t dingtalk_cmd = {
+        .command = "set_dingtalk",
+        .help = "Set DingTalk app credentials",
+        .func = &cmd_set_dingtalk_credentials,
+        .argtable = &dingtalk_creds_args,
+    };
+    esp_console_cmd_register(&dingtalk_cmd);
+
+    /* set_api_key */
+    api_key_args.key = arg_str1(NULL, NULL, "<key>", "LLM API key");
+    api_key_args.end = arg_end(1);
+    esp_console_cmd_t api_key_cmd = {
+        .command = "set_api_key",
+        .help = "Set LLM API key",
+        .func = &cmd_set_api_key,
+        .argtable = &api_key_args,
+    };
+    esp_console_cmd_register(&api_key_cmd);
+
+    /* set_model */
+    model_args.model = arg_str1(NULL, NULL, "<model>", "Model identifier");
+    model_args.end = arg_end(1);
+    esp_console_cmd_t model_cmd = {
+        .command = "set_model",
+        .help = "Set LLM model (default: " OTTOCLAW_LLM_DEFAULT_MODEL ")",
+        .func = &cmd_set_model,
+        .argtable = &model_args,
+    };
+    esp_console_cmd_register(&model_cmd);
+
+    /* set_model_provider */
+    provider_args.provider = arg_str1(NULL, NULL, "<provider>", "API format (anthropic|openai_compat)");
+    provider_args.end = arg_end(1);
+    esp_console_cmd_t provider_cmd = {
+        .command = "set_model_provider",
+        .help = "Set LLM API format (anthropic or openai_compat, default: " OTTOCLAW_LLM_PROVIDER_DEFAULT ")",
+        .func = &cmd_set_model_provider,
+        .argtable = &provider_args,
+    };
+    esp_console_cmd_register(&provider_cmd);
+
+    /* memory_read */
+    esp_console_cmd_t mem_read_cmd = {
+        .command = "memory_read",
+        .help = "Read MEMORY.md",
+        .func = &cmd_memory_read,
+    };
+    esp_console_cmd_register(&mem_read_cmd);
+
+    /* memory_write */
+    memory_write_args.content = arg_str1(NULL, NULL, "<content>", "Content to write");
+    memory_write_args.end = arg_end(1);
+    esp_console_cmd_t mem_write_cmd = {
+        .command = "memory_write",
+        .help = "Write to MEMORY.md",
+        .func = &cmd_memory_write,
+        .argtable = &memory_write_args,
+    };
+    esp_console_cmd_register(&mem_write_cmd);
+
+    /* session_list */
+    esp_console_cmd_t sess_list_cmd = {
+        .command = "session_list",
+        .help = "List all sessions",
+        .func = &cmd_session_list,
+    };
+    esp_console_cmd_register(&sess_list_cmd);
+
+    /* session_clear */
+    session_clear_args.chat_id = arg_str1(NULL, NULL, "<chat_id>", "Chat ID to clear");
+    session_clear_args.end = arg_end(1);
+    esp_console_cmd_t sess_clear_cmd = {
+        .command = "session_clear",
+        .help = "Clear a session",
+        .func = &cmd_session_clear,
+        .argtable = &session_clear_args,
+    };
+    esp_console_cmd_register(&sess_clear_cmd);
+
+    /* heap_info */
+    esp_console_cmd_t heap_cmd = {
+        .command = "heap_info",
+        .help = "Show heap memory usage",
+        .func = &cmd_heap_info,
+    };
+    esp_console_cmd_register(&heap_cmd);
+
+    /* set_search_key */
+    search_key_args.key = arg_str1(NULL, NULL, "<key>", "搜索 API Key (DashScope)");
+    search_key_args.end = arg_end(1);
+    esp_console_cmd_t search_key_cmd = {
+        .command = "set_search_key",
+        .help = "Set search API key (DashScope) for web_search tool",
+        .func = &cmd_set_search_key,
+        .argtable = &search_key_args,
+    };
+    esp_console_cmd_register(&search_key_cmd);
+
+    /* set_bailian_app_id */
+    bailian_app_id_args.app_id = arg_str1(NULL, NULL, "<app_id>", "Bailian search App ID");
+    bailian_app_id_args.end = arg_end(1);
+    esp_console_cmd_t bailian_app_id_cmd = {
+        .command = "set_bailian_app_id",
+        .help = "Set Bailian search App ID for web_search tool",
+        .func = &cmd_set_bailian_app_id,
+        .argtable = &bailian_app_id_args,
+    };
+    esp_console_cmd_register(&bailian_app_id_cmd);
+
+    /* set_proxy */
+    proxy_args.host = arg_str1(NULL, NULL, "<host>", "Proxy host/IP");
+    proxy_args.port = arg_int1(NULL, NULL, "<port>", "Proxy port");
+    proxy_args.end = arg_end(2);
+    esp_console_cmd_t proxy_cmd = {
+        .command = "set_proxy",
+        .help = "Set HTTP proxy (e.g. set_proxy 192.168.1.83 7897)",
+        .func = &cmd_set_proxy,
+        .argtable = &proxy_args,
+    };
+    esp_console_cmd_register(&proxy_cmd);
+
+    /* clear_proxy */
+    esp_console_cmd_t clear_proxy_cmd = {
+        .command = "clear_proxy",
+        .help = "Remove proxy configuration",
+        .func = &cmd_clear_proxy,
+    };
+    esp_console_cmd_register(&clear_proxy_cmd);
+
+    /* config_show */
+    esp_console_cmd_t config_show_cmd = {
+        .command = "config_show",
+        .help = "Show current configuration (build-time + NVS)",
+        .func = &cmd_config_show,
+    };
+    esp_console_cmd_register(&config_show_cmd);
+
+    /* config_reset */
+    esp_console_cmd_t config_reset_cmd = {
+        .command = "config_reset",
+        .help = "Clear all NVS overrides, revert to build-time defaults",
+        .func = &cmd_config_reset,
+    };
+    esp_console_cmd_register(&config_reset_cmd);
+
+    /* restart */
+    esp_console_cmd_t restart_cmd = {
+        .command = "restart",
+        .help = "Restart the device",
+        .func = &cmd_restart,
+    };
+    esp_console_cmd_register(&restart_cmd);
+
+    /* Start REPL */
+    ESP_ERROR_CHECK(esp_console_start_repl(repl));
+    ESP_LOGI(TAG, "Serial CLI started");
+
+    return ESP_OK;
+}
