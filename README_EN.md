@@ -195,10 +195,11 @@ Three methods — pick one:
 
 **Method A: Online one-click flash (easiest, recommended for beginners)**
 
-1. Download the latest merged firmware from [Releases](https://github.com/FlashCat-Jordan/OttoClaw/releases)
-2. Connect the board via USB, hold BOOT then press EN to enter download mode
-3. Open [16302.com/localinit](https://www.16302.com/localinit), select the firmware file, and flash with one click
-4. Press EN to reboot
+1. Download `ottoclaw-full-v2.0.bin` from [Releases](https://github.com/FlashCat-Jordan/OttoClaw/releases)
+2. Connect the board via USB, keep it powered on
+3. Open [16302.com/localinit](https://www.16302.com/localinit), select chip type **ESP series > any**, upload the bin file (write address 0x0, no need to change)
+4. Click "Start Flash" and wait for completion
+5. Press EN to reboot
 
 **Method B: esptool command-line flash**
 
@@ -213,7 +214,7 @@ PORT: `/dev/cu.usbmodem1101` (Mac) or `COM3` (Windows)
 
 5. Press EN to reboot
 
-**Method B: Compile source code then flash (for developers)**
+**Method C: Compile source code then flash (for developers)**
 
 1. Install ESP-IDF build tools:
 ```bash

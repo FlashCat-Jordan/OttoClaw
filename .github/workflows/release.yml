@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -57,44 +60,42 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
           body: |
-            ## Flashing Guide
+            ## OttoClaw ${{ github.ref_name }}
 
-            ### 1. Merged firmware (easiest)
+            ### 烧录方式 / Flashing
 
-            Download `ottoclaw-full-${{ github.ref_name }}.bin` and flash with a single command:
+            **方式一：在线一键烧录（最简单，推荐新手）**
 
+            1. 下载 `ottoclaw-full-${{ github.ref_name }}.bin`
+            2. USB 连接开发板，保持开机状态
+            3. 打开 [鹿戴马在线烧录](https://www.16302.com/localinit)，芯片选 ESP系列 > 不限类型
+            4. 上传固件文件（写入地址 0x0），点击"开始烧录"
+            5. 按一下 EN 键重启设备
+
+            **方式二：esptool 命令行烧录**
             ```bash
-            esptool.py --chip esp32s3 -b 460800 write_flash 0x0 ottoclaw-full-${{ github.ref_name }}.bin
+            esptool.py --chip esp32s3 --port PORT --baud 460800 --before default_reset --after hard_reset write_flash -z 0x0 ottoclaw-full-${{ github.ref_name }}.bin
             ```
+            PORT: `/dev/cu.usbmodem1101` (Mac) / `COM3` (Windows)
 
-            ### 2. Individual binaries (advanced)
+            ### 首次配网 / First-time Setup
 
-            ```bash
-            esptool.py --chip esp32s3 -b 460800 write_flash \
-              0x0     bootloader-${{ github.ref_name }}.bin \
-              0x8000  partition-table-${{ github.ref_name }}.bin \
-              0xf000  ota_data_initial-${{ github.ref_name }}.bin \
-              0x20000 ottoclaw-${{ github.ref_name }}.bin
+            烧录完成后设备自动进入配网模式：
+
+            **网页配网（推荐）：** 连接开发板 WiFi（名称 OttoClaw_xxxx），浏览器自动弹出配置页面。
+
+            **串口配网：** 连接串口 (115200 baud)，输入：
             ```
-
-            ### 3. OTA update (for devices already running OttoClaw)
-
-            Upload `ottoclaw-${{ github.ref_name }}.bin` via the OTA endpoint.
-
-            ### 4. First-time setup
-
-            After flashing, connect to the Captive Portal or use serial CLI (115200 baud):
-
-            ```
-            set_base_url <your-llm-api-base-url>
-            set_api_key <your-api-key>
-            set_app_key <dingtalk-app-key>
-            set_app_secret <dingtalk-app-secret>
-            wifi <ssid> <password>
+            wifi <SSID> <密码>
+            set_base_url <模型API地址>
+            set_api_key <你的API-Key>
+            set_app_key <钉钉AppKey>
+            set_app_secret <钉钉AppSecret>
             reboot
             ```
+
+            ⚠️ 本固件不含任何密钥和个人信息。
           files: |
             ottoclaw-full-${{ github.ref_name }}.bin
             ottoclaw-${{ github.ref_name }}.bin

@@ -200,10 +200,12 @@ Lite 版展示核心能力。正式版在此基础上进一步增强：
 
 **方式一：在线一键烧录（最简单，推荐新手）**
 
-1. 从 [Releases](https://github.com/FlashCat-Jordan/OttoClaw/releases) 下载最新合并固件
-2. USB 连接开发板，按住 BOOT 键再按一下 EN 键进入下载模式
-3. 打开 [16302.com/localinit](https://www.16302.com/localinit)，选择固件文件，一键烧录
-4. 再按一下 EN 键重启设备
+1. 从 [Releases](https://github.com/FlashCat-Jordan/OttoClaw/releases) 下载固件 `ottoclaw-full-v2.0.bin`
+2. USB 连接开发板，保持开机状态
+3. 打开 [鹿戴马在线烧录](https://www.16302.com/localinit)，芯片选 **ESP系列 > 不限类型**
+4. 点击"选择固件文件"，上传下载的 bin 文件（写入地址 0x0，无需修改）
+5. 点击"开始烧录"，等待完成
+6. 按一下 EN 键重启设备
 
 **方式二：esptool 命令行烧录**
 
@@ -218,7 +220,7 @@ PORT 为串口设备路径：Mac `/dev/cu.usbmodem1101`，Windows `COM3`
 
 5. 再按一下 EN 键重启设备
 
-**方式二：编译源码后烧录（适合开发者）**
+**方式三：编译源码后烧录（适合开发者）**
 
 1. 安装 ESP-IDF 编译工具：
 ```bash
